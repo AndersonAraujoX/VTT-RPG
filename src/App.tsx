@@ -82,15 +82,62 @@ function App() {
         <div className="flex-1 p-4 overflow-y-auto">
           <h2 className="text-xs font-bold uppercase text-gray-500 mb-2">Tools</h2>
           <div className="flex flex-col gap-2">
-            <button className="text-left px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm transition-colors">
-              Upload Map
-            </button>
+            <label className="text-left px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm transition-colors cursor-pointer block">
+              <span>Upload Map</span>
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                      const url = ev.target?.result as string;
+                      networkManager.sendAction('UPDATE_MAP', { url });
+                    };
+                    reader.readAsDataURL(file);
+                  }
+                }}
+              />
+            </label>
+
+            <label className="text-left px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm transition-colors cursor-pointer block">
+              <span>Add Token (Image)</span>
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                      const imgUrl = ev.target?.result as string;
+                      const t = {
+                        id: Date.now().toString(),
+                        x: 3,
+                        y: 3,
+                        size: 1,
+                        image: imgUrl,
+                        label: 'Token',
+                        stats: { hp: 10, maxHp: 10, ac: 10 }
+                      };
+                      networkManager.sendAction('ADD_TOKEN', t);
+                    };
+                    reader.readAsDataURL(file);
+                  }
+                }}
+              />
+            </label>
+
             <button
               className="text-left px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm transition-colors"
               onClick={handleAddTestToken}
             >
-              Add Test Token
+              Add Basic Token
             </button>
+
             <div className="mt-4 p-2 bg-yellow-900/30 border border-yellow-700/50 rounded text-xs text-yellow-200">
               <p>Debug Info:</p>
               <p>Connected: {networkManager.hostConnection ? 'Yes' : 'No'}</p>
