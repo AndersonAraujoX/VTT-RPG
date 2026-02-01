@@ -3,26 +3,7 @@ import { useGameStore, type ChatMessage } from '../../store/gameStore';
 import { networkManager } from '../../services/network';
 import { v4 as uuidv4 } from 'uuid';
 import { Send, Scroll } from 'lucide-react';
-
-const rollDice = (formula: string) => {
-    const match = formula.match(/(\d+)d(\d+)([+-]\d+)?/);
-    if (!match) return null;
-
-    const count = parseInt(match[1]);
-    const sides = parseInt(match[2]);
-    const mod = match[3] ? parseInt(match[3]) : 0;
-
-    let total = 0;
-    const rolls = [];
-    for (let i = 0; i < count; i++) {
-        const r = Math.floor(Math.random() * sides) + 1;
-        rolls.push(r);
-        total += r;
-    }
-    total += mod;
-
-    return { total, rolls, mod };
-};
+import { rollDice } from '../../utils/dice';
 
 export const ChatBox: React.FC = () => {
     const [input, setInput] = useState('');
