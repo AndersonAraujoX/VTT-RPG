@@ -5,8 +5,11 @@ import { TurnTracker } from './components/Tools/TurnTracker';
 import { networkManager } from './services/network';
 import { useGameStore } from './store/gameStore';
 
+import { CharacterSheetModal } from './components/UI/CharacterSheetModal';
+
 function App() {
   const [targetPeerId, setTargetPeerId] = useState('');
+  const [editingTokenId, setEditingTokenId] = useState<string | null>(null);
   const myId = useGameStore(s => s.myId);
   const setIdentity = useGameStore(s => s.setIdentity);
 
@@ -142,6 +145,60 @@ function App() {
               <p>Debug Info:</p>
               <p>Connected: {networkManager.hostConnection ? 'Yes' : 'No'}</p>
             </div>
+
+            <div className="border-t border-gray-700 my-2 pt-2 space-y-2">
+              <button
+                className="w-full text-left px-3 py-2 bg-green-900/50 hover:bg-green-800 rounded text-sm transition-colors text-green-100 flex items-center gap-2"
+                onClick={() => {
+                  const state = useGameStore.getState();
+                  const data = {
+                    tokens: state.tokens,
+                    map: state.map,
+                    chat: state.chat,
+                    turnOrder: state.turnOrder,
+                    version: 1
+                  };
+                  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `vtt-save-${new Date().toISOString().slice(0, 10)}.json`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+              >
+                💾 Save Campaign
+              </button>
+
+              <label className="w-full text-left px-3 py-2 bg-blue-900/50 hover:bg-blue-800 rounded text-sm transition-colors text-blue-100 flex items-center gap-2 cursor-pointer block">
+                <span>📂 Load Campaign</span>
+                <input
+                  type="file"
+                  accept=".json"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                      try {
+                        const json = JSON.parse(ev.target?.result as string);
+                        if (json.version === 1) {
+                          // Sync state via network so all peers get the loaded game
+                          networkManager.sendAction('SYNC_STATE', json);
+                          alert('Campaign loaded successfully!');
+                        }
+                      } catch (err) {
+                        console.error(err);
+                        alert('Failed to load save file.');
+                      }
+                    };
+                    reader.readAsText(file);
+                  }}
+                />
+              </label>
+            </div>
           </div>
         </div>
       </div>
@@ -149,7 +206,7 @@ function App() {
       {/* Main Map Area */}
       <div className="flex-1 relative bg-black overflow-hidden flex flex-col">
         <div className="flex-1 relative">
-          <MapBoard />
+          <MapBoard onEditToken={setEditingTokenId} />
 
           {/* HUD Overlays */}
           <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
@@ -162,6 +219,14 @@ function App() {
 
       {/* Right Sidebar - Chat */}
       <ChatBox />
+
+      {/* Modals */}
+      {editingTokenId && (
+        <CharacterSheetModal
+          tokenId={editingTokenId}
+          onClose={() => setEditingTokenId(null)}
+        />
+      )}
     </div>
   );
 }

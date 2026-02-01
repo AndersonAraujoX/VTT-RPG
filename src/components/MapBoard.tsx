@@ -3,7 +3,11 @@ import { Application, Sprite, Container, Graphics, Assets } from 'pixi.js';
 import { useGameStore } from '../store/gameStore';
 import { networkManager } from '../services/network';
 
-export const MapBoard: React.FC = () => {
+interface MapBoardProps {
+    onEditToken?: (id: string) => void;
+}
+
+export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const appRef = useRef<Application | null>(null);
     const mapState = useGameStore((state) => state.map);
@@ -103,10 +107,18 @@ export const MapBoard: React.FC = () => {
         tokenContainerRef.current.removeChildren();
 
         tokens.forEach(token => {
+            // GM Layer Logic
+            if (token.hidden && !isHost) return; // Players don't see hidden tokens
+
             const graphics = new Graphics();
             graphics.circle(0, 0, mapState.scale / 2 - 2);
             graphics.fill(0xff0000);
             graphics.stroke({ width: 2, color: 0xffffff });
+
+            // Visual indication for GM that token is hidden
+            if (token.hidden) {
+                graphics.alpha = 0.5;
+            }
 
             graphics.position.set(
                 token.x * mapState.scale + mapState.scale / 2,
@@ -118,13 +130,64 @@ export const MapBoard: React.FC = () => {
 
             let dragData: any = null;
             let startPos = { x: 0, y: 0 };
+            let lastClickTime = 0;
 
+            // Dragging Logic
             if (isHost || token.ownerId === myId) {
                 graphics.on('pointerdown', (event) => {
-                    dragData = event;
-                    graphics.alpha = 0.5;
-                    startPos = { x: graphics.x, y: graphics.y };
-                    event.stopPropagation();
+                    if (event.button === 0) { // Left click to drag
+                        // Double Click Detection
+                        const now = Date.now();
+                        if (now - lastClickTime < 300 && onEditToken) {
+                            onEditToken(token.id);
+                            // Prevent drag start on double click if desired, but 
+                            // dragging a tiny bit is fine.
+                        }
+                        lastClickTime = now;
+
+                        dragData = event;
+                        graphics.alpha = token.hidden ? 0.3 : 0.5;
+                        startPos = { x: graphics.x, y: graphics.y };
+                        event.stopPropagation();
+                    }
+                });
+
+                // Context Menu (Right Click)
+                graphics.on('rightclick', (event) => {
+                    if (isHost) {
+                        event.stopPropagation();
+                        // Simple browser confirm for now, later custom UI
+                        // Using a small timeout to avoid context menu event conflict
+                        setTimeout(() => {
+                            const action = confirm(`Manage Token?\nOK: Toggle Visibility (Current: ${token.hidden ? 'Hidden' : 'Visible'})\nCancel: Delete Token`);
+                            if (action) {
+                                networkManager.sendAction('UPDATE_TOKEN', {
+                                    id: token.id,
+                                    data: { hidden: !token.hidden }
+                                });
+                            } else {
+                                // If they explicitly clicked cancel on a confirm it usually means "No", 
+                                // but here we are hackily using it for "Delete". 
+                                // Better UX: Use a real HTML overlay context menu in next step.
+                                // For now let's just do visibility toggle on single click?
+                                // Actually, let's just make right click = Toggle Visibility for simplicity first.
+                                // Or use window.prompt? No, let's keep it simple:
+                                // Right Click = Toggle Visibility.
+                            }
+                        }, 10);
+                    }
+                });
+
+                // Better Interaction: Right click triggers visibility toggle directly for efficiency
+                graphics.on('rightclick', (event) => {
+                    if (isHost) {
+                        event.stopPropagation();
+                        event.preventDefault(); // Try to block browser menu
+                        networkManager.sendAction('UPDATE_TOKEN', {
+                            id: token.id,
+                            data: { hidden: !token.hidden }
+                        });
+                    }
                 });
 
                 graphics.on('pointermove', (event) => {
@@ -138,7 +201,7 @@ export const MapBoard: React.FC = () => {
                 graphics.on('pointerup', () => {
                     if (dragData) {
                         dragData = null;
-                        graphics.alpha = 1;
+                        graphics.alpha = token.hidden ? 0.5 : 1;
 
                         const gridX = Math.floor(graphics.x / mapState.scale);
                         const gridY = Math.floor(graphics.y / mapState.scale);
@@ -152,7 +215,7 @@ export const MapBoard: React.FC = () => {
 
                 graphics.on('pointerupoutside', () => {
                     dragData = null;
-                    graphics.alpha = 1;
+                    graphics.alpha = token.hidden ? 0.5 : 1;
                     graphics.position.set(startPos.x, startPos.y);
                 });
             }

@@ -14,6 +14,7 @@ export interface Token {
         ac: number;
     };
     ownerId?: string; // If 'undefined', GM controls. If set, specific player controls.
+    hidden?: boolean; // If true, only visible to GM (ghosted)
 }
 
 export interface ChatMessage {
