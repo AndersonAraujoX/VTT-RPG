@@ -13,6 +13,7 @@ describe('GameStore Fog of War', () => {
                 gridType: 'square',
                 fogEnabled: false,
                 revealedAreas: [],
+                dynamicLightingEnabled: false
             }
         });
     });

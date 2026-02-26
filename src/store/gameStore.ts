@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { v4 as uuidv4 } from 'uuid';
 
 export interface Token {
     id: string;
@@ -38,11 +37,95 @@ export interface Macro {
     command: string;
 }
 
+export interface TurnEntity {
+    id: string;
+    name: string;
+    initiative: number;
+}
+
+export interface Drawing {
+    id: string;
+    type: 'freehand' | 'line' | 'rect' | 'circle' | 'cone' | 'cube';
+    color: string;
+    thickness: number;
+    points: { x: number, y: number }[];
+}
+
+export interface Wall {
+    id: string;
+    p1: { x: number, y: number };
+    p2: { x: number, y: number };
+    isDoor?: boolean;
+    isOpen?: boolean;
+}
+
+export interface Ping {
+    id: string;
+    x: number;
+    y: number;
+    color: string;
+}
+
+export interface SavedAsset {
+    id: string;
+    name: string;
+    imageUrl: string;
+    defaultSize: number;
+}
+
+export interface Scene {
+    id: string;
+    name: string;
+    map: {
+        url: string | null;
+        scale: number;
+        offsetX: number;
+        offsetY: number;
+        gridType: 'square' | 'hex';
+        fogEnabled: boolean;
+        revealedAreas: { x: number, y: number, radius: number }[];
+        dynamicLightingEnabled: boolean;
+    };
+    tokens: Token[];
+    drawings: Drawing[];
+    walls: Wall[];
+}
+
+export interface SavedAsset {
+    id: string;
+    name: string;
+    imageUrl: string;
+    defaultSize: number;
+}
+
+export interface Scene {
+    id: string;
+    name: string;
+    map: {
+        url: string | null;
+        scale: number;
+        offsetX: number;
+        offsetY: number;
+        gridType: 'square' | 'hex';
+        fogEnabled: boolean;
+        revealedAreas: { x: number, y: number, radius: number }[];
+        dynamicLightingEnabled: boolean;
+    };
+    tokens: Token[];
+    drawings: Drawing[];
+    walls: Wall[];
+}
+
 export interface GameState {
     // Identity
     myId: string;
     isHost: boolean;
     username: string;
+
+    // Tool State
+    activeTool: 'pan' | 'draw' | 'circle' | 'cone' | 'cube' | 'wall' | 'door';
+    toolColor: string;
+    toolThickness: number;
 
     // Game Data
     tokens: Token[];
@@ -54,42 +137,88 @@ export interface GameState {
         gridType: 'square' | 'hex';
         fogEnabled: boolean;
         revealedAreas: { x: number, y: number, radius: number }[];
+        dynamicLightingEnabled: boolean;
     };
     chat: ChatMessage[];
-    turnOrder: string[]; // Token IDs
+    turnOrder: TurnEntity[];
     macros: Macro[]; // Local user macros
     audio: {
         url: string | null;
         isPlaying: boolean;
     };
+    handout: string | null;
+    drawings: Drawing[];
+    walls: Wall[];
+    pings: Ping[];
+
+    // GM Tools State
+    scenes: Scene[];
+    activeSceneId: string;
+    savedAssets: SavedAsset[];
 
     // Actions
     setIdentity: (id: string, isHost: boolean) => void;
     setUsername: (name: string) => void;
+    setActiveTool: (tool: 'pan' | 'draw' | 'circle' | 'cone' | 'cube' | 'wall' | 'door') => void;
+    setToolColor: (color: string) => void;
+    setToolThickness: (thickness: number) => void;
     addToken: (token: Token) => void;
     updateToken: (id: string, data: Partial<Token>) => void;
     removeToken: (id: string) => void;
-    setMapBackground: (url: string) => void;
+    updateMap: (data: Partial<GameState['map']>) => void;
     addChatMessage: (msg: ChatMessage) => void;
+    addPing: (ping: Ping) => void;
+    removePing: (id: string) => void;
 
     // Map Actions
     toggleFog: (enabled: boolean) => void;
     revealArea: (x: number, y: number, radius: number) => void;
     resetFog: () => void;
+    addDrawing: (drawing: Drawing) => void;
+    removeDrawing: (id: string) => void;
+    clearDrawings: () => void;
+
+    // Wall Actions
+    addWall: (wall: Wall) => void;
+    removeWall: (id: string) => void;
+    clearWalls: () => void;
+    toggleWallDoor: (id: string) => void;
+    toggleDynamicLighting: (enabled: boolean) => void;
+
+    // Initiative Actions
+    setTurnOrder: (order: TurnEntity[]) => void;
+    addToInitiative: (name: string, value: number) => void;
+    removeFromInitiative: (id: string) => void;
+    clearInitiative: () => void;
+    nextTurn: () => void;
 
     // Automation Actions
     addMacro: (macro: Macro) => void;
     removeMacro: (id: string) => void;
     setAudio: (url: string | null, isPlaying: boolean) => void;
+    setHandout: (url: string | null) => void;
+
+    // Scene Actions
+    saveScene: (name: string) => void;
+    loadScene: (id: string) => void;
+
+    // Asset Actions
+    addSavedAsset: (asset: SavedAsset) => void;
+    removeSavedAsset: (id: string) => void;
 
     // Sync methods (called by network)
     syncState: (state: Partial<GameState>) => void;
 }
 
 export const useGameStore = create<GameState>((set) => ({
-    myId: uuidv4(),
+    myId: '',
     isHost: false,
-    username: 'Player',
+    username: `Player ${Math.floor(Math.random() * 1000)}`,
+
+    activeTool: 'pan',
+    toolColor: '#ff0000',
+    toolThickness: 3,
+
     tokens: [],
     map: {
         url: null,
@@ -99,33 +228,109 @@ export const useGameStore = create<GameState>((set) => ({
         gridType: 'square',
         fogEnabled: false,
         revealedAreas: [],
+        dynamicLightingEnabled: false
     },
     chat: [],
     turnOrder: [],
     macros: [],
     audio: { url: null, isPlaying: false },
+    handout: null,
+    drawings: [],
+    walls: [],
+    pings: [],
+    scenes: [],
+    activeSceneId: 'default',
+    savedAssets: [],
 
     setIdentity: (id, isHost) => set({ myId: id, isHost }),
     setUsername: (name) => set({ username: name }),
+    setActiveTool: (tool) => set({ activeTool: tool }),
+    setToolColor: (color) => set({ toolColor: color }),
+    setToolThickness: (thickness) => set({ toolThickness: thickness }),
+
     addToken: (token) => set((state) => ({ tokens: [...state.tokens, token] })),
     updateToken: (id, data) => set((state) => ({
         tokens: state.tokens.map((t) => (t.id === id ? { ...t, ...data } : t)),
     })),
-    removeToken: (id) => set((state) => ({
-        tokens: state.tokens.filter((t) => t.id !== id),
-    })),
-    setMapBackground: (url) => set((state) => ({ map: { ...state.map, url } })),
-    addChatMessage: (msg) => set((state) => ({ chat: [...state.chat, msg] })),
+    removeToken: (id) => set((state) => ({ tokens: state.tokens.filter((t) => t.id !== id) })),
 
+    updateMap: (data: Partial<GameState['map']>) => set((state) => ({ map: { ...state.map, ...data } })),
     toggleFog: (enabled) => set((state) => ({ map: { ...state.map, fogEnabled: enabled } })),
     revealArea: (x, y, radius) => set((state) => ({
         map: { ...state.map, revealedAreas: [...state.map.revealedAreas, { x, y, radius }] }
     })),
     resetFog: () => set((state) => ({ map: { ...state.map, revealedAreas: [] } })),
 
+    addChatMessage: (msg) => set((state) => ({ chat: [...state.chat, msg] })),
+
+    addPing: (ping) => set((state) => ({ pings: [...state.pings, ping] })),
+    removePing: (id) => set((state) => ({ pings: state.pings.filter(p => p.id !== id) })),
+
+    setTurnOrder: (order) => set({ turnOrder: order }),
+    addToInitiative: (name, initiative) => set((state) => {
+        const newEntity = { id: Date.now().toString(), name, initiative };
+        const newOrder = [...state.turnOrder, newEntity]
+            .sort((a, b) => b.initiative - a.initiative);
+        return { turnOrder: newOrder };
+    }),
+    nextTurn: () => set((state) => {
+        if (state.turnOrder.length <= 1) return state;
+        const [first, ...rest] = state.turnOrder;
+        return { turnOrder: [...rest, first] };
+    }),
+    clearInitiative: () => set({ turnOrder: [] }),
+    removeFromInitiative: (id) => set((state) => ({
+        turnOrder: state.turnOrder.filter(e => e.id !== id)
+    })),
+
     addMacro: (macro) => set((state) => ({ macros: [...state.macros, macro] })),
     removeMacro: (id) => set((state) => ({ macros: state.macros.filter(m => m.id !== id) })),
+
     setAudio: (url, isPlaying) => set({ audio: { url, isPlaying } }),
+    setHandout: (url) => set({ handout: url }),
+
+    addDrawing: (drawing) => set((state) => ({ drawings: [...state.drawings, drawing] })),
+    removeDrawing: (id) => set((state) => ({ drawings: state.drawings.filter(d => d.id !== id) })),
+    clearDrawings: () => set({ drawings: [] }),
+
+    addWall: (wall) => set((state) => ({ walls: [...state.walls, wall] })),
+    removeWall: (id) => set((state) => ({ walls: state.walls.filter(w => w.id !== id) })),
+    clearWalls: () => set({ walls: [] }),
+    toggleWallDoor: (id) => set((state) => ({
+        walls: state.walls.map(w => w.id === id ? { ...w, isOpen: !w.isOpen } : w)
+    })),
+    toggleDynamicLighting: (enabled) => set((state) => ({ map: { ...state.map, dynamicLightingEnabled: enabled } })),
+
+    saveScene: (name) => set((state) => {
+        const id = Date.now().toString();
+        const newScene: Scene = {
+            id,
+            name,
+            map: state.map,
+            tokens: state.tokens,
+            drawings: state.drawings,
+            walls: state.walls
+        };
+        return {
+            scenes: [...state.scenes, newScene],
+            activeSceneId: id
+        };
+    }),
+
+    loadScene: (id) => set((state) => {
+        const scene = state.scenes.find(s => s.id === id);
+        if (!scene) return state;
+        return {
+            activeSceneId: id,
+            map: scene.map,
+            tokens: scene.tokens,
+            drawings: scene.drawings,
+            walls: scene.walls
+        };
+    }),
+
+    addSavedAsset: (asset) => set((state) => ({ savedAssets: [...state.savedAssets, asset] })),
+    removeSavedAsset: (id) => set((state) => ({ savedAssets: state.savedAssets.filter(a => a.id !== id) })),
 
     syncState: (newState) => set((state) => ({ ...state, ...newState })),
 }));

@@ -14,6 +14,7 @@ describe('Game Store', () => {
                 gridType: 'square',
                 fogEnabled: false,
                 revealedAreas: [],
+                dynamicLightingEnabled: false
             }
         });
     });
@@ -102,7 +103,7 @@ describe('Game Store', () => {
     });
 
     it('should set map background', () => {
-        useGameStore.getState().setMapBackground('http://example.com/map.jpg');
+        useGameStore.getState().updateMap({ url: 'http://example.com/map.jpg' });
         expect(useGameStore.getState().map.url).toBe('http://example.com/map.jpg');
     });
 

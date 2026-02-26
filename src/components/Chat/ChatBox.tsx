@@ -46,6 +46,26 @@ export const ChatBox: React.FC = () => {
                 msg.type = 'system';
                 msg.content = 'Invalid dice formula. Use format like 1d20+5';
             }
+        } else if (input.startsWith('/init ')) {
+            const formula = input.replace('/init ', '').trim();
+            const result = rollDice(formula);
+
+            if (result) {
+                msg.type = 'roll';
+                msg.rollData = {
+                    formula: formula,
+                    result: result.total,
+                    details: `[${result.rolls.join(', ')}] ${result.mod ? (result.mod > 0 ? '+' + result.mod : result.mod) : ''}`
+                };
+                msg.content = `rolled initiative ${formula} = ${result.total}`;
+
+                // Add to initiative and broadcast state update
+                useGameStore.getState().addToInitiative(myName, result.total);
+                networkManager.sendAction('SYNC_STATE', { turnOrder: useGameStore.getState().turnOrder });
+            } else {
+                msg.type = 'system';
+                msg.content = 'Invalid init formula. Use format /init 1d20+2';
+            }
         }
 
         networkManager.sendAction('ADD_CHAT', msg);

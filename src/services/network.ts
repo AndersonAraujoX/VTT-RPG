@@ -97,7 +97,7 @@ export class NetworkManager {
             case 'ADD_TOKEN': store.addToken(payload); break;
             case 'UPDATE_TOKEN': store.updateToken(payload.id, payload.data); break;
             case 'ADD_CHAT': store.addChatMessage(payload); break;
-            case 'UPDATE_MAP': store.setMapBackground(payload.url); break;
+            case 'UPDATE_MAP': store.updateMap({ url: payload.url }); break;
             // ...
         }
     }
