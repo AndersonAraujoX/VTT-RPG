@@ -13,6 +13,9 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({ tokenI
     const [hp, setHp] = useState(0);
     const [maxHp, setMaxHp] = useState(0);
     const [ac, setAc] = useState(0);
+    const [conditions, setConditions] = useState<string[]>([]);
+
+    const standardConditions = ['Poisoned', 'Prone', 'Stunned', 'Invisible'];
 
     useEffect(() => {
         if (token) {
@@ -20,6 +23,7 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({ tokenI
             setHp(token.stats?.hp || 0);
             setMaxHp(token.stats?.maxHp || 0);
             setAc(token.stats?.ac || 10);
+            setConditions(token.conditions || []);
             // Notes would be a new field, assuming we add it or just use label for now? 
             // The task said "Notes", so let's check store interface. 
             // Store interface has 'label', 'stats'. No notes. I should probably add notes to store first if strictly needed.
@@ -37,7 +41,8 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({ tokenI
             id: token.id,
             data: {
                 label: name,
-                stats: { hp, maxHp, ac }
+                stats: { hp, maxHp, ac },
+                conditions: conditions
             }
         });
         onClose();
@@ -90,6 +95,25 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({ tokenI
                             value={ac}
                             onChange={e => setAc(Number(e.target.value))}
                         />
+                    </div>
+                    <div>
+                        <label className="block text-xs text-gray-400 mb-1">Conditions</label>
+                        <div className="flex flex-wrap gap-2">
+                            {standardConditions.map(cond => (
+                                <label key={cond} className="flex items-center gap-1 bg-gray-900 px-2 py-1 rounded text-xs select-none cursor-pointer border border-gray-700 hover:border-gray-500">
+                                    <input
+                                        type="checkbox"
+                                        checked={conditions.includes(cond)}
+                                        onChange={(e) => {
+                                            if (e.target.checked) setConditions([...conditions, cond]);
+                                            else setConditions(conditions.filter(c => c !== cond));
+                                        }}
+                                        className="accent-purple-500"
+                                    />
+                                    {cond}
+                                </label>
+                            ))}
+                        </div>
                     </div>
                 </div>
 

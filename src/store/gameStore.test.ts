@@ -13,6 +13,7 @@ describe('Game Store', () => {
                 offsetY: 0,
                 gridType: 'square',
                 fogEnabled: false,
+                revealedAreas: [],
             }
         });
     });
@@ -57,6 +58,47 @@ describe('Game Store', () => {
         useGameStore.getState().addToken(token);
         useGameStore.getState().removeToken('1');
         expect(useGameStore.getState().tokens).toHaveLength(0);
+    });
+
+    it('should update token HP and retain other stats', () => {
+        const token = {
+            id: '2',
+            x: 0,
+            y: 0,
+            size: 1,
+            image: '',
+            label: 'Test Token',
+            stats: { hp: 10, maxHp: 10, ac: 10 }
+        };
+        useGameStore.getState().addToken(token);
+
+        useGameStore.getState().updateToken('2', { stats: { hp: 5, maxHp: 10, ac: 10 } });
+
+        const updatedToken = useGameStore.getState().tokens.find(t => t.id === '2');
+        expect(updatedToken?.stats?.hp).toBe(5);
+        expect(updatedToken?.stats?.maxHp).toBe(10);
+        expect(updatedToken?.label).toBe('Test Token');
+    });
+
+    it('should add and update conditions', () => {
+        const token = {
+            id: '3',
+            x: 0,
+            y: 0,
+            size: 1,
+            image: '',
+            label: 'Test Token'
+        };
+        useGameStore.getState().addToken(token);
+
+        // Add condition
+        useGameStore.getState().updateToken('3', { conditions: ['poisoned'] });
+        expect(useGameStore.getState().tokens.find(t => t.id === '3')?.conditions).toContain('poisoned');
+
+        // Add another condition
+        useGameStore.getState().updateToken('3', { conditions: ['poisoned', 'stunned'] });
+        expect(useGameStore.getState().tokens.find(t => t.id === '3')?.conditions).toHaveLength(2);
+        expect(useGameStore.getState().tokens.find(t => t.id === '3')?.conditions).toContain('stunned');
     });
 
     it('should set map background', () => {

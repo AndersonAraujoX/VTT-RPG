@@ -6,6 +6,8 @@ import { networkManager } from './services/network';
 import { useGameStore } from './store/gameStore';
 
 import { CharacterSheetModal } from './components/UI/CharacterSheetModal';
+import { MacroBar } from './components/Tools/MacroBar';
+import { Jukebox } from './components/Tools/Jukebox';
 
 function App() {
   const [targetPeerId, setTargetPeerId] = useState('');
@@ -141,10 +143,44 @@ function App() {
               Add Basic Token
             </button>
 
+            {/* Fog of War Controls */}
+            {useGameStore.getState().isHost && (
+              <div className="mt-4 p-2 bg-gray-900 border border-gray-700 rounded-lg space-y-2">
+                <h3 className="text-xs font-bold uppercase text-gray-500 flex items-center gap-2">
+                  🌫️ Fog of War
+                </h3>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      const newState = !useGameStore.getState().map.fogEnabled;
+                      useGameStore.getState().toggleFog(newState);
+                      networkManager.sendAction('SYNC_STATE', { map: useGameStore.getState().map });
+                    }}
+                    className={`flex-1 text-xs py-1 rounded font-bold ${useGameStore.getState().map.fogEnabled ? 'bg-red-700 hover:bg-red-600' : 'bg-green-700 hover:bg-green-600'
+                      }`}
+                  >
+                    {useGameStore.getState().map.fogEnabled ? 'Disable Fog' : 'Enable Fog'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      useGameStore.getState().resetFog();
+                      networkManager.sendAction('SYNC_STATE', { map: useGameStore.getState().map });
+                    }}
+                    className="flex-1 text-xs py-1 rounded font-bold bg-gray-700 hover:bg-gray-600 text-white"
+                  >
+                    Reset Vision
+                  </button>
+                </div>
+                <p className="text-[10px] text-gray-500">Hold <kbd className="bg-gray-800 px-1 rounded">Shift</kbd> and drag on map to reveal areas.</p>
+              </div>
+            )}
+
             <div className="mt-4 p-2 bg-yellow-900/30 border border-yellow-700/50 rounded text-xs text-yellow-200">
               <p>Debug Info:</p>
               <p>Connected: {networkManager.hostConnection ? 'Yes' : 'No'}</p>
             </div>
+
+            <Jukebox />
 
             <div className="border-t border-gray-700 my-2 pt-2 space-y-2">
               <button
@@ -210,11 +246,14 @@ function App() {
 
           {/* HUD Overlays */}
           <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
-            <div className="pointer-events-auto p-4">
+            <div className="pointer-events-auto p-4 flex flex-col items-start gap-4">
               <TurnTracker />
             </div>
           </div>
         </div>
+
+        {/* Macro Bar at the bottom of the map area */}
+        <MacroBar />
       </div>
 
       {/* Right Sidebar - Chat */}

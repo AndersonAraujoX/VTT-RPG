@@ -18,6 +18,8 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
     // Refs for managing Pixi objects
     const mapContainerRef = useRef<Container>(new Container());
     const tokenContainerRef = useRef<Container>(new Container());
+    const fogContainerRef = useRef<Container>(new Container());
+    const overlayContainerRef = useRef<Container>(new Container()); // For tools like drawing reveal radius
     const backgroundSpriteRef = useRef<Sprite | null>(null);
 
     // Initialize Pixi
@@ -38,26 +40,89 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
             // Setup Layers
             app.stage.addChild(mapContainerRef.current);
             mapContainerRef.current.addChild(tokenContainerRef.current);
+            mapContainerRef.current.addChild(fogContainerRef.current);
+            mapContainerRef.current.addChild(overlayContainerRef.current);
 
-            // Interaction (Pan/Zoom)
-            let isDragging = false;
+            // Interaction (Pan/Zoom and Tools)
+            let isPanning = false;
+            let isRevealing = false;
             let lastPos = { x: 0, y: 0 };
+            let revealStart = { x: 0, y: 0 };
 
             app.canvas.addEventListener('mousedown', (e) => {
-                if (e.button === 1 || (e.button === 0 && e.altKey)) {
-                    isDragging = true;
+                const rect = app.canvas.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
+
+                if (e.shiftKey && useGameStore.getState().isHost) {
+                    isRevealing = true;
+                    // Convert screen to world coordinates using the inverse transform
+                    // mapContainer.position + world * scale = screen
+                    // world = (screen - position) / scale
+                    const screenX = mouseX;
+                    const screenY = mouseY;
+                    const worldX = (screenX - mapContainerRef.current.position.x) / mapContainerRef.current.scale.x;
+                    const worldY = (screenY - mapContainerRef.current.position.y) / mapContainerRef.current.scale.y;
+
+                    revealStart = { x: worldX, y: worldY };
+                } else if (e.button === 1 || (e.button === 0 && e.altKey)) {
+                    isPanning = true;
                     lastPos = { x: e.clientX, y: e.clientY };
                 }
             });
 
-            window.addEventListener('mouseup', () => isDragging = false);
+            window.addEventListener('mouseup', (e) => {
+                isPanning = false;
+                if (isRevealing) {
+                    isRevealing = false;
+                    overlayContainerRef.current.removeChildren();
+
+                    const rect = app.canvas.getBoundingClientRect();
+                    const screenX = e.clientX - rect.left;
+                    const screenY = e.clientY - rect.top;
+                    const worldX = (screenX - mapContainerRef.current.position.x) / mapContainerRef.current.scale.x;
+                    const worldY = (screenY - mapContainerRef.current.position.y) / mapContainerRef.current.scale.y;
+
+                    const dx = worldX - revealStart.x;
+                    const dy = worldY - revealStart.y;
+                    const radius = Math.sqrt(dx * dx + dy * dy);
+
+                    if (radius > 5) {
+                        networkManager.sendAction('SYNC_STATE', {
+                            map: {
+                                ...useGameStore.getState().map,
+                                revealedAreas: [...useGameStore.getState().map.revealedAreas, { x: revealStart.x, y: revealStart.y, radius }]
+                            }
+                        });
+                        useGameStore.getState().revealArea(revealStart.x, revealStart.y, radius);
+                    }
+                }
+            });
+
             window.addEventListener('mousemove', (e) => {
-                if (isDragging) {
+                if (isPanning) {
                     const dx = e.clientX - lastPos.x;
                     const dy = e.clientY - lastPos.y;
                     mapContainerRef.current.position.x += dx;
                     mapContainerRef.current.position.y += dy;
                     lastPos = { x: e.clientX, y: e.clientY };
+                } else if (isRevealing) {
+                    const rect = app.canvas.getBoundingClientRect();
+                    const screenX = e.clientX - rect.left;
+                    const screenY = e.clientY - rect.top;
+                    const worldX = (screenX - mapContainerRef.current.position.x) / mapContainerRef.current.scale.x;
+                    const worldY = (screenY - mapContainerRef.current.position.y) / mapContainerRef.current.scale.y;
+
+                    const dx = worldX - revealStart.x;
+                    const dy = worldY - revealStart.y;
+                    const radius = Math.sqrt(dx * dx + dy * dy);
+
+                    overlayContainerRef.current.removeChildren();
+                    const g = new Graphics();
+                    g.circle(revealStart.x, revealStart.y, radius);
+                    g.fill({ color: 0xffffff, alpha: 0.3 });
+                    g.stroke({ width: 2, color: 0xffff00 });
+                    overlayContainerRef.current.addChild(g);
                 }
             });
 
@@ -124,6 +189,51 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
                 token.x * mapState.scale + mapState.scale / 2,
                 token.y * mapState.scale + mapState.scale / 2
             );
+
+            // --- HP Bar Rendering ---
+            if (token.stats && token.stats.maxHp > 0) {
+                const barWidth = mapState.scale * 0.8;
+                const barHeight = 4;
+                const hpPercent = Math.max(0, Math.min(1, token.stats.hp / token.stats.maxHp));
+
+                const hpBg = new Graphics();
+                hpBg.rect(-barWidth / 2, -mapState.scale / 2 - 8, barWidth, barHeight);
+                hpBg.fill(0xff0000); // Red background
+
+                const hpFg = new Graphics();
+                hpFg.rect(-barWidth / 2, -mapState.scale / 2 - 8, barWidth * hpPercent, barHeight);
+                hpFg.fill(0x00ff00); // Green foreground
+
+                graphics.addChild(hpBg);
+                graphics.addChild(hpFg);
+            }
+
+            // --- Status Effects Rendering ---
+            if (token.conditions && token.conditions.length > 0) {
+                const iconRadius = 4;
+                const startAngle = -Math.PI / 4; // Top right
+
+                // Colors for standard conditions
+                const conditionColors: Record<string, number> = {
+                    'poisoned': 0x00ff00, // Green
+                    'prone': 0xffff00,    // Yellow
+                    'stunned': 0x00ffff,  // Cyan
+                    'invisible': 0xaabbcc // Light Gray
+                };
+
+                token.conditions.forEach((cond, index) => {
+                    const angle = startAngle + (index * Math.PI / 4);
+                    const dist = mapState.scale / 2 - 2;
+                    const cx = Math.cos(angle) * dist;
+                    const cy = Math.sin(angle) * dist;
+
+                    const ind = new Graphics();
+                    ind.circle(cx, cy, iconRadius);
+                    ind.fill(conditionColors[cond.toLowerCase()] || 0xffffff);
+                    ind.stroke({ width: 1, color: 0x000000 });
+                    graphics.addChild(ind);
+                });
+            }
 
             graphics.eventMode = 'static';
             graphics.cursor = 'pointer';
@@ -224,6 +334,33 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
         });
 
     }, [tokens, mapState.scale, isHost, myId, mapState.url]);
+
+    // Render Fog of War
+    useEffect(() => {
+        fogContainerRef.current.removeChildren();
+        if (!mapState.fogEnabled) {
+            fogContainerRef.current.visible = false;
+            return;
+        }
+
+        fogContainerRef.current.visible = true;
+
+        const g = new Graphics();
+
+        // Draw the massive black rectangle
+        g.rect(-10000, -10000, 20000, 20000);
+
+        // Draw circles for revealed areas and explicitly cut them out
+        mapState.revealedAreas.forEach(area => {
+            g.circle(area.x, area.y, area.radius);
+            g.cut(); // PixiJS v8 path boolean operation
+        });
+
+        g.fill({ color: 0x000000, alpha: 0.95 });
+
+        fogContainerRef.current.addChild(g);
+
+    }, [mapState.fogEnabled, mapState.revealedAreas]);
 
     return <div ref={containerRef} className="w-full h-full" />;
 };

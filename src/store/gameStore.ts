@@ -15,6 +15,7 @@ export interface Token {
     };
     ownerId?: string; // If 'undefined', GM controls. If set, specific player controls.
     hidden?: boolean; // If true, only visible to GM (ghosted)
+    conditions?: string[]; // Array of status effects (e.g., 'poisoned', 'prone')
 }
 
 export interface ChatMessage {
@@ -29,6 +30,12 @@ export interface ChatMessage {
         result: number;
         details: string;
     };
+}
+
+export interface Macro {
+    id: string;
+    label: string;
+    command: string;
 }
 
 export interface GameState {
@@ -46,9 +53,15 @@ export interface GameState {
         offsetY: number;
         gridType: 'square' | 'hex';
         fogEnabled: boolean;
+        revealedAreas: { x: number, y: number, radius: number }[];
     };
     chat: ChatMessage[];
     turnOrder: string[]; // Token IDs
+    macros: Macro[]; // Local user macros
+    audio: {
+        url: string | null;
+        isPlaying: boolean;
+    };
 
     // Actions
     setIdentity: (id: string, isHost: boolean) => void;
@@ -58,6 +71,17 @@ export interface GameState {
     removeToken: (id: string) => void;
     setMapBackground: (url: string) => void;
     addChatMessage: (msg: ChatMessage) => void;
+
+    // Map Actions
+    toggleFog: (enabled: boolean) => void;
+    revealArea: (x: number, y: number, radius: number) => void;
+    resetFog: () => void;
+
+    // Automation Actions
+    addMacro: (macro: Macro) => void;
+    removeMacro: (id: string) => void;
+    setAudio: (url: string | null, isPlaying: boolean) => void;
+
     // Sync methods (called by network)
     syncState: (state: Partial<GameState>) => void;
 }
@@ -74,9 +98,12 @@ export const useGameStore = create<GameState>((set) => ({
         offsetY: 0,
         gridType: 'square',
         fogEnabled: false,
+        revealedAreas: [],
     },
     chat: [],
     turnOrder: [],
+    macros: [],
+    audio: { url: null, isPlaying: false },
 
     setIdentity: (id, isHost) => set({ myId: id, isHost }),
     setUsername: (name) => set({ username: name }),
@@ -89,5 +116,16 @@ export const useGameStore = create<GameState>((set) => ({
     })),
     setMapBackground: (url) => set((state) => ({ map: { ...state.map, url } })),
     addChatMessage: (msg) => set((state) => ({ chat: [...state.chat, msg] })),
+
+    toggleFog: (enabled) => set((state) => ({ map: { ...state.map, fogEnabled: enabled } })),
+    revealArea: (x, y, radius) => set((state) => ({
+        map: { ...state.map, revealedAreas: [...state.map.revealedAreas, { x, y, radius }] }
+    })),
+    resetFog: () => set((state) => ({ map: { ...state.map, revealedAreas: [] } })),
+
+    addMacro: (macro) => set((state) => ({ macros: [...state.macros, macro] })),
+    removeMacro: (id) => set((state) => ({ macros: state.macros.filter(m => m.id !== id) })),
+    setAudio: (url, isPlaying) => set({ audio: { url, isPlaying } }),
+
     syncState: (newState) => set((state) => ({ ...state, ...newState })),
 }));
