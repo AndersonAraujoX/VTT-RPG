@@ -5,6 +5,7 @@ export class NetworkManager {
     peer: Peer | null = null;
     connections: DataConnection[] = [];
     hostConnection: DataConnection | null = null;
+    onPeerConnect?: (peerId: string) => void;
 
     constructor() {
         // Singleton or managed by App
@@ -40,6 +41,7 @@ export class NetworkManager {
             console.log('Connected to host');
             // Request initial state
             conn.send({ type: 'REQUEST_STATE' });
+            this.onPeerConnect?.(conn.peer);
         });
 
         conn.on('data', (data) => {
@@ -49,6 +51,9 @@ export class NetworkManager {
 
     handleConnection(conn: DataConnection) {
         this.connections.push(conn);
+        conn.on('open', () => {
+            this.onPeerConnect?.(conn.peer);
+        });
         conn.on('data', (data) => {
             this.handleData(data, conn);
         });
@@ -98,6 +103,8 @@ export class NetworkManager {
             case 'UPDATE_TOKEN': store.updateToken(payload.id, payload.data); break;
             case 'ADD_CHAT': store.addChatMessage(payload); break;
             case 'UPDATE_MAP': store.updateMap({ url: payload.url }); break;
+            case 'ADD_TEXT': store.addText(payload); break;
+            case 'REMOVE_TEXT': store.removeText(payload); break;
             // ...
         }
     }

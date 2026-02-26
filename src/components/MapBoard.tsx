@@ -47,6 +47,7 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
     const walls = useGameStore((state) => state.walls);
     const tokens = useGameStore((state) => state.tokens);
     const pings = useGameStore((state) => state.pings);
+    const texts = useGameStore((state) => state.texts);
     const myId = useGameStore((state) => state.myId);
     const isHost = useGameStore((state) => state.isHost);
 
@@ -58,6 +59,7 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
     const wallContainerRef = useRef<Container>(new Container());
     const drawingContainerRef = useRef<Container>(new Container());
     const pingContainerRef = useRef<Container>(new Container());
+    const textContainerRef = useRef<Container>(new Container());
     const overlayContainerRef = useRef<Container>(new Container()); // For tools like drawing reveal radius
     const backgroundSpriteRef = useRef<Sprite | null>(null);
 
@@ -77,10 +79,11 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
             appRef.current = app;
 
             // Setup Layers
-            app.stage.addChild(mapContainerRef.current);
-            mapContainerRef.current.addChild(tokenContainerRef.current);
-            mapContainerRef.current.addChild(drawingContainerRef.current);
-            mapContainerRef.current.addChild(lightingContainerRef.current);
+            app.stage.addChild(wallContainerRef.current);
+            app.stage.addChild(fogContainerRef.current);
+            app.stage.addChild(textContainerRef.current);
+            app.stage.addChild(tokenContainerRef.current);
+            app.stage.addChild(lightingContainerRef.current);
             mapContainerRef.current.addChild(fogContainerRef.current);
             mapContainerRef.current.addChild(wallContainerRef.current);
             mapContainerRef.current.addChild(pingContainerRef.current);
@@ -141,6 +144,20 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
                 } else if (e.button === 0 && (useGameStore.getState().activeTool === 'wall' || useGameStore.getState().activeTool === 'door')) {
                     isDrawing = true;
                     currentDrawingPoints = [{ x: worldX, y: worldY }, { x: worldX, y: worldY }];
+                } else if (e.button === 0 && useGameStore.getState().activeTool === 'text') {
+                    const content = window.prompt("Enter text for map:");
+                    if (content?.trim()) {
+                        const newText = {
+                            id: Date.now().toString(),
+                            x: worldX,
+                            y: worldY,
+                            text: content.trim(),
+                            color: useGameStore.getState().toolColor || '#ffffff',
+                            fontSize: 32 / mapContainerRef.current.scale.x // scale up slightly so it's readable
+                        };
+                        useGameStore.getState().addText(newText);
+                        networkManager.sendAction('ADD_TEXT', newText);
+                    }
                 } else if (e.button === 0 && useGameStore.getState().activeTool === 'pan' && useGameStore.getState().isHost) {
                     // Check if GM clicked on a door to toggle it
                     let toggled = false;
@@ -420,6 +437,22 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
             if (token.hidden && !isHost) return; // Players don't see hidden tokens
 
             const graphics = new Graphics();
+
+            // --- Auras Rendering ---
+            if (token.auras && token.auras.length > 0) {
+                token.auras.forEach(aura => {
+                    const auraRadiusPx = (aura.radius / 5) * mapState.scale;
+                    const auraG = new Graphics();
+                    auraG.circle(0, 0, auraRadiusPx);
+                    // Convert hex string "#RRGGBB" to number. Assume basic validation.
+                    const colorNum = parseInt((aura.color || '#ffffff').replace('#', ''), 16);
+                    auraG.fill({ color: colorNum, alpha: 0.2 });
+                    auraG.stroke({ color: colorNum, width: 2, alpha: 0.5 });
+                    graphics.addChild(auraG);
+                });
+            }
+
+            // Base Token Shape
             graphics.circle(0, 0, mapState.scale / 2 - 2);
             graphics.fill(0xff0000);
             graphics.stroke({ width: 2, color: 0xffffff });
@@ -466,6 +499,7 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
                 };
 
                 token.conditions.forEach((cond, index) => {
+                    if (cond.toLowerCase() === 'dead') return; // Handled separately
                     const angle = startAngle + (index * Math.PI / 4);
                     const dist = mapState.scale / 2 - 2;
                     const cx = Math.cos(angle) * dist;
@@ -477,6 +511,18 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
                     ind.stroke({ width: 1, color: 0x000000 });
                     graphics.addChild(ind);
                 });
+
+                // Render Dead X
+                if (token.conditions.includes('Dead')) {
+                    const deadX = new Graphics();
+                    const size = mapState.scale / 2 - 4;
+                    deadX.moveTo(-size, -size);
+                    deadX.lineTo(size, size);
+                    deadX.moveTo(size, -size);
+                    deadX.lineTo(-size, size);
+                    deadX.stroke({ width: 6, color: 0xaa0000, alpha: 0.8 });
+                    graphics.addChild(deadX);
+                }
             }
 
             graphics.eventMode = 'static';
@@ -607,6 +653,43 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
 
     }, [mapState.fogEnabled, mapState.revealedAreas]);
 
+    // Render Map Texts
+    useEffect(() => {
+        textContainerRef.current.removeChildren();
+
+        texts.forEach(t => {
+            const hexColor = t.color.replace('#', '0x');
+            const pt = new Text({
+                text: t.text,
+                style: new TextStyle({
+                    fontFamily: 'Arial',
+                    fontSize: t.fontSize || 24,
+                    fill: parseInt(hexColor, 16),
+                    stroke: { color: 0x000000, width: 4 },
+                    align: 'center'
+                })
+            });
+            pt.x = t.x;
+            pt.y = t.y;
+            pt.anchor.set(0.5);
+
+            if (isHost) {
+                pt.eventMode = 'static';
+                pt.cursor = 'pointer';
+                pt.on('rightclick', (e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    if (confirm("Delete this text?")) {
+                        useGameStore.getState().removeText(t.id);
+                        networkManager.sendAction('REMOVE_TEXT', t.id);
+                    }
+                });
+            }
+
+            textContainerRef.current.addChild(pt);
+        });
+    }, [texts, isHost]);
+
     useEffect(() => {
         wallContainerRef.current.removeChildren();
         if (!isHost) return;
@@ -655,15 +738,35 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
             ];
 
             const activeWalls = walls.filter(w => !w.isDoor || !w.isOpen); // Open doors do not block light
-            const allWalls = [...activeWalls, ...boundaryWalls];
-            const points: { x: number, y: number }[] = [];
-            allWalls.forEach(w => {
-                points.push(w.p1, w.p2);
-            });
+            const baseWalls = [...activeWalls, ...boundaryWalls];
 
             visibleTokens.forEach(token => {
                 const tx = token.x * mapState.scale + mapState.scale / 2;
                 const ty = token.y * mapState.scale + mapState.scale / 2;
+
+                let tokenWalls = [...baseWalls];
+
+                // If token has light radius, bound vision. Otherwise generic huge radius.
+                const radiusFt = (token.lightRadius && token.lightRadius > 0) ? token.lightRadius : 1000;
+                const radiusPx = (radiusFt / 5) * mapState.scale;
+
+                // Create 16-gon light boundary for smooth circular vision
+                const polyPoints: { x: number, y: number }[] = [];
+                const sides = 16;
+                for (let i = 0; i < sides; i++) {
+                    const angle = (i * 2 * Math.PI) / sides;
+                    polyPoints.push({ x: tx + Math.cos(angle) * radiusPx, y: ty + Math.sin(angle) * radiusPx });
+                }
+                for (let i = 0; i < sides; i++) {
+                    const p1 = polyPoints[i];
+                    const p2 = polyPoints[(i + 1) % sides];
+                    tokenWalls.push({ id: `light_${i}`, p1, p2 });
+                }
+
+                const points: { x: number, y: number }[] = [];
+                tokenWalls.forEach(w => {
+                    points.push(w.p1, w.p2);
+                });
 
                 const angles: number[] = [];
                 points.forEach(p => {
@@ -678,13 +781,13 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
                     const dy = Math.sin(angle);
                     const ray = {
                         p1: { x: tx, y: ty },
-                        p2: { x: tx + dx * 10000, y: ty + dy * 10000 }
+                        p2: { x: tx + dx * (radiusPx + 100), y: ty + dy * (radiusPx + 100) }
                     };
 
                     let closestIntersect: any = null;
                     let minT = Infinity;
 
-                    allWalls.forEach(wall => {
+                    tokenWalls.forEach(wall => {
                         const intersect = getIntersection(ray.p1, ray.p2, wall.p1, wall.p2);
                         if (intersect && intersect.param < minT) {
                             minT = intersect.param;

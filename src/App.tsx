@@ -9,6 +9,9 @@ import { CharacterSheetModal } from './components/UI/CharacterSheetModal';
 import { MacroBar } from './components/Tools/MacroBar';
 import { Jukebox } from './components/Tools/Jukebox';
 import { HandoutViewer } from './components/UI/HandoutViewer';
+import { diceService } from './services/diceService';
+import { Compendium } from './components/Tools/Compendium';
+import { AVChat } from './components/Chat/AVChat';
 
 function App() {
   const [targetPeerId, setTargetPeerId] = useState('');
@@ -22,6 +25,9 @@ function App() {
     networkManager.initialize().then((id) => {
       setIdentity(id, true); // Default to host until joined
     }).catch(console.error);
+
+    // Initialize 3D Dice Box
+    diceService.init().catch(console.error);
   }, []);
 
   const handleJoin = () => {
@@ -47,6 +53,9 @@ function App() {
 
   return (
     <div className="flex h-screen w-screen bg-gray-900 text-white overflow-hidden font-sans">
+      {/* 3D Dice Canvas Container */}
+      <div id="dice-box-container" className="fixed inset-0 pointer-events-none z-50"></div>
+
       {/* Sidebar / Tools */}
       <div className="w-64 bg-gray-800 flex flex-col border-r border-gray-700 z-10 shadow-xl">
         <div className="p-4 border-b border-gray-700">
@@ -172,6 +181,12 @@ function App() {
                   className={`flex-1 text-xs py-1 rounded font-bold ${useGameStore.getState().activeTool === 'draw' ? 'bg-blue-600' : 'bg-gray-700 hover:bg-gray-600'}`}
                 >
                   ✏️ Draw
+                </button>
+                <button
+                  onClick={() => useGameStore.getState().setActiveTool('text')}
+                  className={`flex-1 text-xs py-1 rounded font-bold ${useGameStore.getState().activeTool === 'text' ? 'bg-pink-600' : 'bg-gray-700 hover:bg-gray-600'}`}
+                >
+                  📝 Text
                 </button>
               </div>
 
@@ -446,6 +461,13 @@ function App() {
               </div>
             )}
 
+            {/* GM Tools: 5e Compendium */}
+            {useGameStore.getState().isHost && (
+              <div className="mt-4">
+                <Compendium />
+              </div>
+            )}
+
             <div className="mt-4 p-2 bg-yellow-900/30 border border-yellow-700/50 rounded text-xs text-yellow-200">
               <p>Debug Info:</p>
               <p>Connected: {networkManager.hostConnection ? 'Yes' : 'No'}</p>
@@ -514,6 +536,7 @@ function App() {
       <div className="flex-1 relative bg-black overflow-hidden flex flex-col">
         <div className="flex-1 relative">
           <MapBoard onEditToken={setEditingTokenId} />
+          <AVChat />
 
           {/* HUD Overlays */}
           <div className="absolute top-0 left-0 w-full h-full pointer-events-none">

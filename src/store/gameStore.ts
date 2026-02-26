@@ -11,10 +11,21 @@ export interface Token {
         hp: number;
         maxHp: number;
         ac: number;
+        attributes?: {
+            strength: number;
+            dexterity: number;
+            constitution: number;
+            intelligence: number;
+            wisdom: number;
+            charisma: number;
+        };
+        skills?: Record<string, number>;
     };
     ownerId?: string; // If 'undefined', GM controls. If set, specific player controls.
     hidden?: boolean; // If true, only visible to GM (ghosted)
     conditions?: string[]; // Array of status effects (e.g., 'poisoned', 'prone')
+    lightRadius?: number; // Light source radius in grid units/feet
+    auras?: { id: string, radius: number, color: string }[]; // Magic auras
 }
 
 export interface ChatMessage {
@@ -49,6 +60,15 @@ export interface Drawing {
     color: string;
     thickness: number;
     points: { x: number, y: number }[];
+}
+
+export interface TextItem {
+    id: string;
+    x: number;
+    y: number;
+    text: string;
+    color: string;
+    fontSize: number;
 }
 
 export interface Wall {
@@ -89,6 +109,7 @@ export interface Scene {
     tokens: Token[];
     drawings: Drawing[];
     walls: Wall[];
+    texts: TextItem[];
 }
 
 export interface SavedAsset {
@@ -114,6 +135,7 @@ export interface Scene {
     tokens: Token[];
     drawings: Drawing[];
     walls: Wall[];
+    texts: TextItem[];
 }
 
 export interface GameState {
@@ -123,7 +145,7 @@ export interface GameState {
     username: string;
 
     // Tool State
-    activeTool: 'pan' | 'draw' | 'circle' | 'cone' | 'cube' | 'wall' | 'door';
+    activeTool: 'pan' | 'draw' | 'circle' | 'cone' | 'cube' | 'wall' | 'door' | 'text';
     toolColor: string;
     toolThickness: number;
 
@@ -149,6 +171,7 @@ export interface GameState {
     handout: string | null;
     drawings: Drawing[];
     walls: Wall[];
+    texts: TextItem[];
     pings: Ping[];
 
     // GM Tools State
@@ -159,7 +182,7 @@ export interface GameState {
     // Actions
     setIdentity: (id: string, isHost: boolean) => void;
     setUsername: (name: string) => void;
-    setActiveTool: (tool: 'pan' | 'draw' | 'circle' | 'cone' | 'cube' | 'wall' | 'door') => void;
+    setActiveTool: (tool: 'pan' | 'draw' | 'circle' | 'cone' | 'cube' | 'wall' | 'door' | 'text') => void;
     setToolColor: (color: string) => void;
     setToolThickness: (thickness: number) => void;
     addToken: (token: Token) => void;
@@ -177,6 +200,9 @@ export interface GameState {
     addDrawing: (drawing: Drawing) => void;
     removeDrawing: (id: string) => void;
     clearDrawings: () => void;
+    addText: (text: TextItem) => void;
+    removeText: (id: string) => void;
+    clearTexts: () => void;
 
     // Wall Actions
     addWall: (wall: Wall) => void;
@@ -237,6 +263,7 @@ export const useGameStore = create<GameState>((set) => ({
     handout: null,
     drawings: [],
     walls: [],
+    texts: [],
     pings: [],
     scenes: [],
     activeSceneId: 'default',
@@ -249,9 +276,24 @@ export const useGameStore = create<GameState>((set) => ({
     setToolThickness: (thickness) => set({ toolThickness: thickness }),
 
     addToken: (token) => set((state) => ({ tokens: [...state.tokens, token] })),
-    updateToken: (id, data) => set((state) => ({
-        tokens: state.tokens.map((t) => (t.id === id ? { ...t, ...data } : t)),
-    })),
+    updateToken: (id, data) => set((state) => {
+        const tokens = state.tokens.map((t) => {
+            if (t.id !== id) return t;
+
+            const updatedToken = { ...t, ...data };
+
+            // Death Automation Logic
+            if (updatedToken.stats && updatedToken.stats.hp <= 0 && (!t.stats || t.stats.hp > 0)) {
+                const newConditions = new Set(updatedToken.conditions || []);
+                newConditions.add('Dead');
+                newConditions.add('Prone');
+                updatedToken.conditions = Array.from(newConditions);
+            }
+
+            return updatedToken;
+        });
+        return { tokens };
+    }),
     removeToken: (id) => set((state) => ({ tokens: state.tokens.filter((t) => t.id !== id) })),
 
     updateMap: (data: Partial<GameState['map']>) => set((state) => ({ map: { ...state.map, ...data } })),
@@ -293,6 +335,10 @@ export const useGameStore = create<GameState>((set) => ({
     removeDrawing: (id) => set((state) => ({ drawings: state.drawings.filter(d => d.id !== id) })),
     clearDrawings: () => set({ drawings: [] }),
 
+    addText: (text) => set((state) => ({ texts: [...state.texts, text] })),
+    removeText: (id) => set((state) => ({ texts: state.texts.filter(t => t.id !== id) })),
+    clearTexts: () => set({ texts: [] }),
+
     addWall: (wall) => set((state) => ({ walls: [...state.walls, wall] })),
     removeWall: (id) => set((state) => ({ walls: state.walls.filter(w => w.id !== id) })),
     clearWalls: () => set({ walls: [] }),
@@ -309,7 +355,8 @@ export const useGameStore = create<GameState>((set) => ({
             map: state.map,
             tokens: state.tokens,
             drawings: state.drawings,
-            walls: state.walls
+            walls: state.walls,
+            texts: state.texts
         };
         return {
             scenes: [...state.scenes, newScene],
@@ -325,7 +372,8 @@ export const useGameStore = create<GameState>((set) => ({
             map: scene.map,
             tokens: scene.tokens,
             drawings: scene.drawings,
-            walls: scene.walls
+            walls: scene.walls,
+            texts: scene.texts || []
         };
     }),
 

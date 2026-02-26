@@ -2,8 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useGameStore, type ChatMessage } from '../../store/gameStore';
 import { networkManager } from '../../services/network';
 import { v4 as uuidv4 } from 'uuid';
-import { Send, Scroll } from 'lucide-react';
+import { Send, Scroll, Eraser } from 'lucide-react';
 import { rollDice } from '../../utils/dice';
+import { diceService } from '../../services/diceService';
 
 export const ChatBox: React.FC = () => {
     const [input, setInput] = useState('');
@@ -18,7 +19,7 @@ export const ChatBox: React.FC = () => {
 
     useEffect(scrollToBottom, [messages]);
 
-    const handleSend = () => {
+    const handleSend = async () => {
         if (!input.trim()) return;
 
         let msg: ChatMessage = {
@@ -30,11 +31,19 @@ export const ChatBox: React.FC = () => {
             type: 'text'
         };
 
-        if (input.startsWith('/roll ')) {
-            const formula = input.replace('/roll ', '').trim();
+        const currentInput = input;
+        setInput(''); // Clear immediately for UX
+
+        if (currentInput.startsWith('/roll ')) {
+            const formula = currentInput.replace('/roll ', '').trim();
             const result = rollDice(formula);
 
             if (result) {
+                // Trigger 3D Dice
+                try {
+                    await diceService.roll(formula);
+                } catch (e) { /* Ignore 3d errors and fallback to chat */ }
+
                 msg.type = 'roll';
                 msg.rollData = {
                     formula: formula,
@@ -46,11 +55,15 @@ export const ChatBox: React.FC = () => {
                 msg.type = 'system';
                 msg.content = 'Invalid dice formula. Use format like 1d20+5';
             }
-        } else if (input.startsWith('/init ')) {
-            const formula = input.replace('/init ', '').trim();
+        } else if (currentInput.startsWith('/init ')) {
+            const formula = currentInput.replace('/init ', '').trim();
             const result = rollDice(formula);
 
             if (result) {
+                try {
+                    await diceService.roll(formula);
+                } catch (e) { }
+
                 msg.type = 'roll';
                 msg.rollData = {
                     formula: formula,
@@ -69,7 +82,6 @@ export const ChatBox: React.FC = () => {
         }
 
         networkManager.sendAction('ADD_CHAT', msg);
-        setInput('');
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -78,8 +90,17 @@ export const ChatBox: React.FC = () => {
 
     return (
         <div className="flex flex-col h-full bg-gray-900 border-l border-gray-700 w-80">
-            <div className="p-3 border-b border-gray-700 bg-gray-800 font-bold text-gray-200 flex items-center gap-2">
-                <Scroll size={18} /> Chat & Logs
+            <div className="p-3 border-b border-gray-700 bg-gray-800 font-bold text-gray-200 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                    <Scroll size={18} /> Chat & Logs
+                </div>
+                <button
+                    onClick={() => diceService.clear()}
+                    className="text-gray-400 hover:text-white"
+                    title="Clear 3D Dice"
+                >
+                    <Eraser size={16} />
+                </button>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-3">

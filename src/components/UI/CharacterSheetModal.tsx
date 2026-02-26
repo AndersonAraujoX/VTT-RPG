@@ -15,6 +15,25 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({ tokenI
     const [ac, setAc] = useState(0);
     const [conditions, setConditions] = useState<string[]>([]);
 
+    // New Fields
+    const [auras, setAuras] = useState<{ id: string, radius: number, color: string }[]>([]);
+    const [lightRadius, setLightRadius] = useState<number>(0);
+    const [attributes, setAttributes] = useState({
+        strength: 10, dexterity: 10, constitution: 10,
+        intelligence: 10, wisdom: 10, charisma: 10
+    });
+    const [skills, setSkills] = useState<Record<string, number>>({
+        acrobatics: 0, animalHandling: 0, arcana: 0, athletics: 0,
+        deception: 0, history: 0, insight: 0, intimidation: 0,
+        investigation: 0, medicine: 0, nature: 0, perception: 0,
+        performance: 0, persuasion: 0, religion: 0, sleightOfHand: 0,
+        stealth: 0, survival: 0
+    });
+
+    const myId = useGameStore(state => state.myId);
+    const username = useGameStore(state => state.username);
+    const addChatMessage = useGameStore(state => state.addChatMessage);
+
     const standardConditions = ['Poisoned', 'Prone', 'Stunned', 'Invisible'];
 
     useEffect(() => {
@@ -24,14 +43,15 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({ tokenI
             setMaxHp(token.stats?.maxHp || 0);
             setAc(token.stats?.ac || 10);
             setConditions(token.conditions || []);
-            // Notes would be a new field, assuming we add it or just use label for now? 
-            // The task said "Notes", so let's check store interface. 
-            // Store interface has 'label', 'stats'. No notes. I should probably add notes to store first if strictly needed.
-            // For now let's map "Notes" to 'label' or add it. I'll add it to store in a bit if I missed it.
-            // Actually, let's just stick to what exists for now to avoid refactoring store interface mid-component creation. 
-            // I'll assume 'label' is the name. 'Notes' might need a new field.
-            // Let's rely on 'label' as Name. 
-            // I'll skip 'notes' for this first pass to ensure type safety, or add it to the type now.
+            setAuras(token.auras || []);
+            setLightRadius(token.lightRadius || 0);
+
+            if (token.stats?.attributes) {
+                setAttributes(token.stats.attributes);
+            }
+            if (token.stats?.skills) {
+                setSkills({ ...skills, ...token.stats.skills });
+            }
         }
     }, [token]);
 
@@ -41,12 +61,37 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({ tokenI
             id: token.id,
             data: {
                 label: name,
-                stats: { hp, maxHp, ac },
-                conditions: conditions
+                stats: { hp, maxHp, ac, attributes, skills },
+                conditions: conditions,
+                auras: auras,
+                lightRadius: lightRadius > 0 ? lightRadius : undefined
             }
         });
         onClose();
     };
+
+    const handleRoll = (label: string, modifier: number) => {
+        const rollResult = Math.floor(Math.random() * 20) + 1;
+        const total = rollResult + modifier;
+        const msg = {
+            id: Date.now().toString(),
+            senderId: myId,
+            senderName: username || 'Player',
+            timestamp: Date.now(),
+            content: `Rolling ${label}`,
+            type: 'roll' as const,
+            rollData: {
+                formula: `1d20 + ${modifier}`,
+                result: total,
+                details: `[${rollResult}] + ${modifier}`
+            }
+        };
+
+        addChatMessage(msg);
+        networkManager.sendAction('CHAT_MESSAGE', msg);
+    };
+
+    const calculateModifier = (score: number) => Math.floor((score - 10) / 2);
 
     if (!token) return null;
 
@@ -87,16 +132,89 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({ tokenI
                         </div>
                     </div>
 
-                    <div>
-                        <label className="block text-xs text-gray-400">Armour Class (AC)</label>
-                        <input
-                            type="number"
-                            className="w-full bg-gray-900 border border-gray-700 px-2 py-1 rounded text-white"
-                            value={ac}
-                            onChange={e => setAc(Number(e.target.value))}
-                        />
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs text-gray-400">Armour Class (AC)</label>
+                            <input
+                                type="number"
+                                className="w-full bg-gray-900 border border-gray-700 px-2 py-1 rounded text-white"
+                                value={ac}
+                                onChange={e => setAc(Number(e.target.value))}
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs text-gray-400">Light Radius (ft)</label>
+                            <input
+                                type="number"
+                                className="w-full bg-gray-900 border border-gray-700 px-2 py-1 rounded text-white"
+                                value={lightRadius}
+                                onChange={e => setLightRadius(Number(e.target.value))}
+                                title="0 for no light source"
+                            />
+                        </div>
                     </div>
-                    <div>
+
+                    <div className="grid grid-cols-2 gap-4 border-t border-gray-700 pt-2 mt-2">
+                        {/* Attributes Column */}
+                        <div className="space-y-2">
+                            <h3 className="text-xs font-bold text-gray-400 uppercase">Attributes</h3>
+                            {Object.entries(attributes).map(([attr, score]) => {
+                                const mod = calculateModifier(score);
+                                return (
+                                    <div key={attr} className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => handleRoll(attr.toUpperCase(), mod)}
+                                            className="bg-gray-700 hover:bg-purple-600 px-2 py-0.5 rounded textxs text-white"
+                                            title={`Roll ${attr} Check`}
+                                        >
+                                            🎲
+                                        </button>
+                                        <label className="flex-1 text-[10px] uppercase text-gray-300">
+                                            {attr.substring(0, 3)}
+                                        </label>
+                                        <input
+                                            type="number"
+                                            className="w-12 bg-gray-900 border border-gray-700 px-1 py-0.5 rounded text-xs text-center text-white"
+                                            value={score}
+                                            onChange={e => setAttributes({ ...attributes, [attr]: Number(e.target.value) })}
+                                        />
+                                        <span className="w-6 text-xs text-right text-gray-400">{mod >= 0 ? `+${mod}` : mod}</span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        {/* Skills Column - Just a few common ones for UI demo to avoid massive list */}
+                        <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                            <h3 className="text-xs font-bold text-gray-400 uppercase sticky top-0 bg-gray-800 py-1">Skills</h3>
+                            {['acrobatics', 'athletics', 'perception', 'stealth', 'investigation'].map(skill => {
+                                // For full 5e, skills map to attributes. For simplicity here, they are flat overrides or based on raw input.
+                                const val = skills[skill] || 0;
+                                return (
+                                    <div key={skill} className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => handleRoll(skill.charAt(0).toUpperCase() + skill.slice(1), val)}
+                                            className="bg-gray-700 hover:bg-purple-600 px-1 py-0.5 rounded text-[10px] text-white"
+                                            title={`Roll ${skill} Check`}
+                                        >
+                                            🎲
+                                        </button>
+                                        <label className="flex-1 text-[10px] capitalize text-gray-300 truncate">
+                                            {skill}
+                                        </label>
+                                        <input
+                                            type="number"
+                                            className="w-10 bg-gray-900 border border-gray-700 px-1 py-0.5 rounded text-[10px] text-center text-white"
+                                            value={val}
+                                            onChange={e => setSkills({ ...skills, [skill]: Number(e.target.value) })}
+                                        />
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    <div className="border-t border-gray-700 pt-2 mt-2">
                         <label className="block text-xs text-gray-400 mb-1">Conditions</label>
                         <div className="flex flex-wrap gap-2">
                             {standardConditions.map(cond => (
@@ -113,6 +231,45 @@ export const CharacterSheetModal: React.FC<CharacterSheetModalProps> = ({ tokenI
                                     {cond}
                                 </label>
                             ))}
+                        </div>
+                    </div>
+
+                    <div className="border-t border-gray-700 pt-2 mt-2">
+                        <div className="flex justify-between items-center mb-1">
+                            <label className="block text-xs text-gray-400">Magic Auras</label>
+                            <button
+                                onClick={() => setAuras([...auras, { id: Date.now().toString(), radius: 10, color: '#00ffff' }])}
+                                className="text-[10px] bg-gray-700 hover:bg-gray-600 px-2 py-0.5 rounded text-white"
+                            >
+                                + Add Aura
+                            </button>
+                        </div>
+                        <div className="space-y-2 max-h-24 overflow-y-auto">
+                            {auras.map(aura => (
+                                <div key={aura.id} className="flex items-center gap-2 bg-gray-900 p-1 rounded border border-gray-700">
+                                    <input
+                                        type="color"
+                                        value={aura.color}
+                                        onChange={e => setAuras(auras.map(a => a.id === aura.id ? { ...a, color: e.target.value } : a))}
+                                        className="w-6 h-6 rounded cursor-pointer border-0 bg-transparent p-0"
+                                    />
+                                    <input
+                                        type="number"
+                                        className="w-16 bg-gray-800 border border-gray-600 px-1 py-0.5 rounded text-xs text-white"
+                                        value={aura.radius}
+                                        onChange={e => setAuras(auras.map(a => a.id === aura.id ? { ...a, radius: Number(e.target.value) } : a))}
+                                        placeholder="Radius ft"
+                                    />
+                                    <span className="text-[10px] text-gray-400 flex-1">ft radius</span>
+                                    <button
+                                        onClick={() => setAuras(auras.filter(a => a.id !== aura.id))}
+                                        className="text-red-400 hover:text-red-300 text-xs px-1"
+                                    >
+                                        ×
+                                    </button>
+                                </div>
+                            ))}
+                            {auras.length === 0 && <div className="text-[10px] text-gray-500 italic">No active auras.</div>}
                         </div>
                     </div>
                 </div>

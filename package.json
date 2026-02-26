@@ -12,6 +12,7 @@
     "deploy": "gh-pages -d dist"
   },
   "dependencies": {
+    "@3d-dice/dice-box": "^1.1.4",
     "@pixi/react": "^8.0.5",
     "@types/uuid": "^10.0.0",
     "buffer": "^6.0.3",
