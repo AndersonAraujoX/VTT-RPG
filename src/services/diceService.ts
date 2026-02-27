@@ -8,7 +8,7 @@ class DiceService {
         if (this.isInitialized) return;
 
         this.box = new DiceBox("#dice-box-container", {
-            assetPath: 'https://unpkg.com/@3d-dice/dice-box@1.1.4/dist/assets/',
+            assetPath: import.meta.env.BASE_URL + 'dice-box/',
             theme: 'default',
             themeColor: '#8b5cf6', // purple-500
             scale: 6,
