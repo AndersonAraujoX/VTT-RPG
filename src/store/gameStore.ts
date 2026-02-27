@@ -101,7 +101,6 @@ export interface Scene {
         scale: number;
         offsetX: number;
         offsetY: number;
-        gridType: 'square' | 'hex';
         fogEnabled: boolean;
         revealedAreas: { x: number, y: number, radius: number }[];
         dynamicLightingEnabled: boolean;
@@ -127,7 +126,6 @@ export interface Scene {
         scale: number;
         offsetX: number;
         offsetY: number;
-        gridType: 'square' | 'hex';
         fogEnabled: boolean;
         revealedAreas: { x: number, y: number, radius: number }[];
         dynamicLightingEnabled: boolean;
@@ -156,7 +154,6 @@ export interface GameState {
         scale: number; // Pixels per grid unit (e.g. 50px)
         offsetX: number;
         offsetY: number;
-        gridType: 'square' | 'hex';
         fogEnabled: boolean;
         revealedAreas: { x: number, y: number, radius: number }[];
         dynamicLightingEnabled: boolean;
@@ -251,7 +248,6 @@ export const useGameStore = create<GameState>((set) => ({
         scale: 50,
         offsetX: 0,
         offsetY: 0,
-        gridType: 'square',
         fogEnabled: false,
         revealedAreas: [],
         dynamicLightingEnabled: false

@@ -10,7 +10,6 @@ describe('GameStore Fog of War', () => {
                 scale: 50,
                 offsetX: 0,
                 offsetY: 0,
-                gridType: 'square',
                 fogEnabled: false,
                 revealedAreas: [],
                 dynamicLightingEnabled: false
