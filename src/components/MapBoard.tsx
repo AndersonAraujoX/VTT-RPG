@@ -434,9 +434,8 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
 
         tokens.forEach(token => {
             // GM Layer Logic
-            if (token.hidden && !isHost) return; // Players don't see hidden tokens
-
-            const graphics = new Graphics();
+            const graphics = new Container();
+            const baseShape = new Graphics();
 
             // --- Auras Rendering ---
             if (token.auras && token.auras.length > 0) {
@@ -453,9 +452,10 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
             }
 
             // Base Token Shape
-            graphics.circle(0, 0, mapState.scale / 2 - 2);
-            graphics.fill(0xff0000);
-            graphics.stroke({ width: 2, color: 0xffffff });
+            baseShape.circle(0, 0, mapState.scale / 2 - 2);
+            baseShape.fill(0xff0000);
+            baseShape.stroke({ width: 2, color: 0xffffff });
+            graphics.addChild(baseShape);
 
             // Visual indication for GM that token is hidden
             if (token.hidden) {

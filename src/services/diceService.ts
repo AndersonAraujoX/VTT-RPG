@@ -16,7 +16,8 @@ class DiceService {
         if (!path.endsWith('/')) path += '/';
         const absoluteAssetPath = window.location.origin + path + 'dice-box/';
 
-        this.box = new DiceBox("#dice-box-container", {
+        this.box = new DiceBox({
+            container: "#dice-box-container",
             assetPath: absoluteAssetPath,
             theme: 'default',
             themeColor: '#8b5cf6', // purple-500
