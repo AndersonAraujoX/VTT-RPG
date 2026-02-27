@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Application, Sprite, Container, Graphics, Text, TextStyle, Assets } from 'pixi.js';
+import { Application, Sprite, Container, Graphics, Text, TextStyle, Texture } from 'pixi.js';
 import { useGameStore } from '../store/gameStore';
 import { networkManager } from '../services/network';
 
@@ -413,7 +413,19 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
             if (!mapState.url || !appRef.current) return;
 
             try {
-                const texture = await Assets.load(mapState.url);
+                // To safely load base64 or remote, use native Image
+                const img = new Image();
+                if (mapState.url.startsWith('http')) {
+                    img.crossOrigin = 'anonymous';
+                }
+
+                await new Promise((resolve, reject) => {
+                    img.onload = resolve;
+                    img.onerror = reject;
+                    img.src = mapState.url as string;
+                });
+                const texture = Texture.from(img);
+
                 if (backgroundSpriteRef.current) {
                     mapContainerRef.current.removeChild(backgroundSpriteRef.current);
                 }
@@ -451,11 +463,57 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
                 });
             }
 
-            // Base Token Shape
-            baseShape.circle(0, 0, mapState.scale / 2 - 2);
-            baseShape.fill(0xff0000);
-            baseShape.stroke({ width: 2, color: 0xffffff });
-            graphics.addChild(baseShape);
+            // Base Token Shape / Image
+            if (token.image) {
+                const img = new Image();
+                if (token.image.startsWith('http')) {
+                    img.crossOrigin = 'anonymous';
+                }
+                img.onload = () => {
+                    if (graphics.destroyed) return;
+                    try {
+                        const tex = Texture.from(img);
+                        const sprite = new Sprite(tex);
+
+                        // Center the sprite
+                        sprite.anchor.set(0.5);
+
+                        // Scale to fit the cell exactly
+                        const targetSize = mapState.scale - 4;
+                        const scale = Math.max(targetSize / sprite.texture.width, targetSize / sprite.texture.height);
+                        sprite.scale.set(scale);
+
+                        // Mask it circularly
+                        const mask = new Graphics();
+                        mask.circle(0, 0, mapState.scale / 2 - 2);
+                        mask.fill(0xffffff);
+
+                        // We must add both sprite and mask to the container
+                        const imgContainer = new Container();
+                        imgContainer.addChild(sprite);
+                        imgContainer.addChild(mask);
+                        sprite.mask = mask;
+
+                        // Add a border
+                        const border = new Graphics();
+                        border.circle(0, 0, mapState.scale / 2 - 2);
+                        border.stroke({ width: 3, color: 0xcccccc });
+
+                        imgContainer.addChild(border);
+
+                        // Add it behind HP bar etc (at index 0 or 1 depending on auras)
+                        graphics.addChildAt(imgContainer, token.auras && token.auras.length > 0 ? token.auras.length : 0);
+                    } catch (e) {
+                        console.error('Failed to create token texture', e);
+                    }
+                };
+                img.src = token.image;
+            } else {
+                baseShape.circle(0, 0, mapState.scale / 2 - 2);
+                baseShape.fill(0xff0000);
+                baseShape.stroke({ width: 2, color: 0xffffff });
+                graphics.addChild(baseShape);
+            }
 
             // Visual indication for GM that token is hidden
             if (token.hidden) {
