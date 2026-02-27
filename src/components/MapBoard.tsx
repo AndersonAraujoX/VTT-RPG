@@ -418,7 +418,6 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
                 if (mapState.url.startsWith('http')) {
                     img.crossOrigin = 'anonymous';
                 }
-
                 await new Promise((resolve, reject) => {
                     img.onload = resolve;
                     img.onerror = reject;
