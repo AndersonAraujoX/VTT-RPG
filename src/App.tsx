@@ -3,7 +3,7 @@ import { MapBoard } from './components/MapBoard';
 import { ChatBox } from './components/Chat/ChatBox';
 import { TurnTracker } from './components/Tools/TurnTracker';
 import { networkManager } from './services/network';
-import { useGameStore, type SavedAsset } from './store/gameStore';
+import { useGameStore } from './store/gameStore';
 
 import { CharacterSheetModal } from './components/UI/CharacterSheetModal';
 import { MacroBar } from './components/Tools/MacroBar';
@@ -12,21 +12,16 @@ import { HandoutViewer } from './components/UI/HandoutViewer';
 import { diceService } from './services/diceService';
 import { Compendium } from './components/Tools/Compendium';
 import { AVChat } from './components/Chat/AVChat';
+import { DrawingTools } from './components/Tools/DrawingTools';
+import { GMSettings } from './components/Tools/GMSettings';
+import { SceneManager } from './components/Tools/SceneManager';
+import { AssetLibrary } from './components/Tools/AssetLibrary';
+import { SaveLoadMenu } from './components/Tools/SaveLoadMenu';
 
 function App() {
   const [targetPeerId, setTargetPeerId] = useState('');
   const [editingTokenId, setEditingTokenId] = useState<string | null>(null);
-  const [newSceneName, setNewSceneName] = useState('');
   const myId = useGameStore(s => s.myId);
-  const isHost = useGameStore(s => s.isHost);
-  const activeTool = useGameStore(s => s.activeTool);
-  const toolColor = useGameStore(s => s.toolColor);
-  const toolThickness = useGameStore(s => s.toolThickness);
-  const fogEnabled = useGameStore(s => s.map.fogEnabled);
-  const dynamicLightingEnabled = useGameStore(s => s.map.dynamicLightingEnabled);
-  const scenes = useGameStore(s => s.scenes);
-  const activeSceneId = useGameStore(s => s.activeSceneId);
-  const savedAssets = useGameStore(s => s.savedAssets);
   const setIdentity = useGameStore(s => s.setIdentity);
 
   useEffect(() => {
@@ -123,6 +118,7 @@ function App() {
                     };
                     reader.readAsDataURL(file);
                   }
+                  e.target.value = '';
                 }}
               />
             </label>
@@ -152,6 +148,7 @@ function App() {
                     };
                     reader.readAsDataURL(file);
                   }
+                  e.target.value = '';
                 }}
               />
             </label>
@@ -163,312 +160,10 @@ function App() {
               Add Basic Token
             </button>
 
-            {/* Drawing Tools */}
-            <div className="mt-4 p-2 bg-gray-900 border border-gray-700 rounded-lg space-y-2">
-              <h3 className="text-xs font-bold uppercase text-gray-500 flex items-center justify-between">
-                ✏️ Drawing Tools
-                <button
-                  onClick={() => {
-                    useGameStore.getState().clearDrawings();
-                    networkManager.sendAction('SYNC_STATE', { drawings: [] });
-                  }}
-                  className="text-[10px] bg-red-900 text-red-200 px-1.5 py-0.5 rounded hover:bg-red-800"
-                >
-                  Clear All
-                </button>
-              </h3>
-
-              <div className="flex gap-2 mb-2">
-                <button
-                  onClick={() => useGameStore.getState().setActiveTool('pan')}
-                  className={`flex-1 text-xs py-1 rounded font-bold ${activeTool === 'pan' ? 'bg-blue-600' : 'bg-gray-700 hover:bg-gray-600'}`}
-                >
-                  ✋ Pan
-                </button>
-                <button
-                  onClick={() => useGameStore.getState().setActiveTool('draw')}
-                  className={`flex-1 text-xs py-1 rounded font-bold ${activeTool === 'draw' ? 'bg-blue-600' : 'bg-gray-700 hover:bg-gray-600'}`}
-                >
-                  ✏️ Draw
-                </button>
-                <button
-                  onClick={() => useGameStore.getState().setActiveTool('text')}
-                  className={`flex-1 text-xs py-1 rounded font-bold ${activeTool === 'text' ? 'bg-pink-600' : 'bg-gray-700 hover:bg-gray-600'}`}
-                >
-                  📝 Text
-                </button>
-              </div>
-
-              <h4 className="text-[10px] font-bold text-gray-400 mt-2 mb-1 uppercase">AoE Templates</h4>
-              <div className="flex gap-1">
-                <button
-                  onClick={() => useGameStore.getState().setActiveTool('circle')}
-                  className={`flex-1 text-xs py-1 rounded font-bold ${activeTool === 'circle' ? 'bg-orange-600' : 'bg-gray-700 hover:bg-gray-600'}`}
-                >
-                  ⭕ Circle
-                </button>
-                <button
-                  onClick={() => useGameStore.getState().setActiveTool('cone')}
-                  className={`flex-1 text-xs py-1 rounded font-bold ${activeTool === 'cone' ? 'bg-orange-600' : 'bg-gray-700 hover:bg-gray-600'}`}
-                >
-                  📐 Cone
-                </button>
-                <button
-                  onClick={() => useGameStore.getState().setActiveTool('cube')}
-                  className={`flex-1 text-xs py-1 rounded font-bold ${activeTool === 'cube' ? 'bg-orange-600' : 'bg-gray-700 hover:bg-gray-600'}`}
-                >
-                  ⬛ Cube
-                </button>
-              </div>
-
-              {activeTool !== 'pan' && (
-                <div className="flex gap-2 items-center mt-2">
-                  <input
-                    type="color"
-                    value={toolColor}
-                    onChange={(e) => useGameStore.getState().setToolColor(e.target.value)}
-                    className="w-8 h-8 rounded cursor-pointer bg-transparent border-none p-0"
-                  />
-                  <input
-                    type="range"
-                    min="1"
-                    max="10"
-                    value={toolThickness}
-                    onChange={(e) => useGameStore.getState().setToolThickness(parseInt(e.target.value))}
-                    className="flex-1"
-                  />
-                </div>
-              )}
-              <p className="text-[10px] text-gray-500 mt-1">Hold <kbd className="bg-gray-800 px-1 rounded">Alt</kbd> and drag for Ruler.</p>
-            </div>
-
-            {isHost && (
-              <label className="text-left px-3 py-2 bg-indigo-900/50 hover:bg-indigo-800 rounded text-sm transition-colors cursor-pointer block border border-indigo-700 font-bold">
-                <span>📜 Share Handout</span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      const reader = new FileReader();
-                      reader.onload = (ev) => {
-                        const url = ev.target?.result as string;
-                        useGameStore.getState().setHandout(url);
-                        networkManager.sendAction('SYNC_STATE', { handout: url });
-                      };
-                      reader.readAsDataURL(file);
-                    }
-                  }}
-                />
-              </label>
-            )}
-
-            {isHost && (
-              <div className="mt-4 p-2 bg-gray-900 border border-gray-700 rounded-lg space-y-2">
-                <h3 className="text-xs font-bold uppercase text-gray-500 flex items-center gap-2">
-                  🌫️ Fog of War
-                </h3>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => {
-                      const newState = !useGameStore.getState().map.fogEnabled;
-                      useGameStore.getState().toggleFog(newState);
-                      networkManager.sendAction('SYNC_STATE', { map: useGameStore.getState().map });
-                    }}
-                    className={`flex-1 text-xs py-1 rounded font-bold ${fogEnabled ? 'bg-red-700 hover:bg-red-600' : 'bg-green-700 hover:bg-green-600'
-                      }`}
-                  >
-                    {fogEnabled ? 'Disable Fog' : 'Enable Fog'}
-                  </button>
-                  <button
-                    onClick={() => {
-                      useGameStore.getState().resetFog();
-                      networkManager.sendAction('SYNC_STATE', { map: useGameStore.getState().map });
-                    }}
-                    className="flex-1 text-xs py-1 rounded font-bold bg-gray-700 hover:bg-gray-600 text-white"
-                  >
-                    Reset Vision
-                  </button>
-                </div>
-                <p className="text-[10px] text-gray-500">Hold <kbd className="bg-gray-800 px-1 rounded">Shift</kbd> and drag on map to reveal areas.</p>
-              </div>
-            )}
-
-            {/* Dynamic Lighting Controls */}
-            {isHost && (
-              <div className="mt-4 p-2 bg-gray-900 border border-yellow-700 rounded-lg space-y-2 flex flex-col">
-                <h3 className="text-xs font-bold uppercase text-yellow-500 flex items-center justify-between">
-                  💡 Dynamic Lighting
-                  <button
-                    onClick={() => {
-                      useGameStore.getState().clearWalls();
-                      networkManager.sendAction('SYNC_STATE', { walls: [] });
-                    }}
-                    className="text-[10px] bg-red-900 text-red-200 px-1.5 py-0.5 rounded hover:bg-red-800"
-                  >
-                    Clear Walls
-                  </button>
-                </h3>
-
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => {
-                      const newState = !useGameStore.getState().map.dynamicLightingEnabled;
-                      useGameStore.getState().toggleDynamicLighting(newState);
-                      networkManager.sendAction('SYNC_STATE', { map: useGameStore.getState().map });
-                    }}
-                    className={`flex-1 text-xs py-1 rounded font-bold ${dynamicLightingEnabled ? 'bg-red-700 hover:bg-red-600 text-white' : 'bg-green-700 hover:bg-green-600 text-white'
-                      }`}
-                  >
-                    {dynamicLightingEnabled ? 'Disable Lighting' : 'Enable Lighting'}
-                  </button>
-                </div>
-
-                <div className="flex gap-2 mt-1">
-                  <button
-                    onClick={() => useGameStore.getState().setActiveTool('wall')}
-                    className={`flex-1 text-xs py-1 rounded font-bold ${activeTool === 'wall' ? 'bg-yellow-600 text-white' : 'bg-gray-700 hover:bg-gray-600'}`}
-                  >
-                    🧱 Draw Walls
-                  </button>
-                  <button
-                    onClick={() => useGameStore.getState().setActiveTool('door')}
-                    className={`flex-1 text-xs py-1 rounded font-bold ${activeTool === 'door' ? 'bg-amber-500 text-black' : 'bg-gray-700 hover:bg-gray-600'}`}
-                  >
-                    🚪 Draw Door
-                  </button>
-                </div>
-                <p className="text-[10px] text-gray-400">Lines drawn will block vision for all tokens.</p>
-              </div>
-            )}
-
-            {/* GM Tools: Scene Manager */}
-            {isHost && (
-              <div className="mt-4 p-2 bg-gray-900 border border-purple-700 rounded-lg space-y-2">
-                <h3 className="text-xs font-bold uppercase text-purple-400">🗺️ Scene Manager</h3>
-                <div className="flex gap-1">
-                  <input
-                    type="text"
-                    placeholder="New Scene Name..."
-                    className="flex-1 px-2 py-1 bg-gray-800 border border-gray-600 rounded text-xs text-white"
-                    value={newSceneName}
-                    onChange={(e) => setNewSceneName(e.target.value)}
-                  />
-                  <button
-                    onClick={() => {
-                      if (!newSceneName.trim()) return;
-                      useGameStore.getState().saveScene(newSceneName.trim());
-                      setNewSceneName('');
-                      // The new scene list syncs automatically if we send state
-                      const state = useGameStore.getState();
-                      networkManager.sendAction('SYNC_STATE', { scenes: state.scenes, activeSceneId: state.activeSceneId });
-                    }}
-                    className="px-2 py-1 bg-purple-600 hover:bg-purple-500 rounded text-xs font-bold"
-                  >
-                    Save
-                  </button>
-                </div>
-                <div className="flex flex-col gap-1 max-h-32 overflow-y-auto pr-1">
-                  {scenes.map(scene => (
-                    <button
-                      key={scene.id}
-                      onClick={() => {
-                        useGameStore.getState().loadScene(scene.id);
-                        const state = useGameStore.getState();
-                        networkManager.sendAction('SYNC_STATE', {
-                          activeSceneId: state.activeSceneId,
-                          map: state.map,
-                          tokens: state.tokens,
-                          drawings: state.drawings,
-                          walls: state.walls
-                        });
-                      }}
-                      className={`text-left px-2 py-1 text-xs rounded transition-colors truncate ${activeSceneId === scene.id ? 'bg-purple-800 font-bold' : 'bg-gray-700 hover:bg-gray-600'}`}
-                    >
-                      {scene.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* GM Tools: Favorite Assets Library */}
-            {isHost && (
-              <div className="mt-4 p-2 bg-gray-900 border border-emerald-700 rounded-lg space-y-2">
-                <h3 className="text-xs font-bold uppercase text-emerald-400 flex justify-between items-center">
-                  📚 Asset Library
-                  <label className="text-[10px] bg-emerald-700 text-white px-1.5 py-0.5 rounded hover:bg-emerald-600 cursor-pointer">
-                    + Upload
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          const reader = new FileReader();
-                          reader.onload = (ev) => {
-                            const imgUrl = ev.target?.result as string;
-                            const asset: SavedAsset = {
-                              id: Date.now().toString(),
-                              name: file.name.split('.')[0],
-                              imageUrl: imgUrl,
-                              defaultSize: 1
-                            };
-                            useGameStore.getState().addSavedAsset(asset);
-                            networkManager.sendAction('SYNC_STATE', { savedAssets: useGameStore.getState().savedAssets });
-                          };
-                          reader.readAsDataURL(file);
-                        }
-                      }}
-                    />
-                  </label>
-                </h3>
-                {savedAssets.length === 0 ? (
-                  <p className="text-[10px] text-gray-500 italic">No saved assets. Upload images to create a quick-drop library.</p>
-                ) : (
-                  <div className="grid grid-cols-4 gap-2 max-h-40 overflow-y-auto p-1">
-                    {savedAssets.map(asset => (
-                      <div
-                        key={asset.id}
-                        className="relative group cursor-pointer"
-                      >
-                        <img
-                          src={asset.imageUrl}
-                          alt={asset.name}
-                          className="w-full aspect-square object-cover rounded hover:ring-2 ring-emerald-500 transition-all"
-                          title={`Click to drop ${asset.name}`}
-                          onClick={() => {
-                            const t = {
-                              id: Date.now().toString(),
-                              x: Math.floor(useGameStore.getState().map.offsetX / -50) + 3, // drop near view center roughly
-                              y: Math.floor(useGameStore.getState().map.offsetY / -50) + 3,
-                              size: asset.defaultSize,
-                              image: asset.imageUrl,
-                              label: asset.name,
-                              stats: { hp: 10, maxHp: 10, ac: 10 }
-                            };
-                            networkManager.sendAction('ADD_TOKEN', t);
-                          }}
-                        />
-                        <button
-                          className="absolute -top-1 -right-1 bg-red-600 text-white rounded-full w-4 h-4 text-[10px] items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity flex"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            useGameStore.getState().removeSavedAsset(asset.id);
-                            networkManager.sendAction('SYNC_STATE', { savedAssets: useGameStore.getState().savedAssets });
-                          }}
-                        >
-                          ×
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
+            <DrawingTools />
+            <GMSettings />
+            <SceneManager />
+            <AssetLibrary />
 
             {/* GM Tools: 5e Compendium */}
             {useGameStore.getState().isHost && (
@@ -484,59 +179,7 @@ function App() {
 
             <Jukebox />
 
-            <div className="border-t border-gray-700 my-2 pt-2 space-y-2">
-              <button
-                className="w-full text-left px-3 py-2 bg-green-900/50 hover:bg-green-800 rounded text-sm transition-colors text-green-100 flex items-center gap-2"
-                onClick={() => {
-                  const state = useGameStore.getState();
-                  const data = {
-                    tokens: state.tokens,
-                    map: state.map,
-                    chat: state.chat,
-                    turnOrder: state.turnOrder,
-                    version: 1
-                  };
-                  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url;
-                  a.download = `vtt-save-${new Date().toISOString().slice(0, 10)}.json`;
-                  a.click();
-                  URL.revokeObjectURL(url);
-                }}
-              >
-                💾 Save Campaign
-              </button>
-
-              <label className="w-full text-left px-3 py-2 bg-blue-900/50 hover:bg-blue-800 rounded text-sm transition-colors text-blue-100 flex items-center gap-2 cursor-pointer block">
-                <span>📂 Load Campaign</span>
-                <input
-                  type="file"
-                  accept=".json"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-
-                    const reader = new FileReader();
-                    reader.onload = (ev) => {
-                      try {
-                        const json = JSON.parse(ev.target?.result as string);
-                        if (json.version === 1) {
-                          // Sync state via network so all peers get the loaded game
-                          networkManager.sendAction('SYNC_STATE', json);
-                          alert('Campaign loaded successfully!');
-                        }
-                      } catch (err) {
-                        console.error(err);
-                        alert('Failed to load save file.');
-                      }
-                    };
-                    reader.readAsText(file);
-                  }}
-                />
-              </label>
-            </div>
+            <SaveLoadMenu />
           </div>
         </div>
       </div>
