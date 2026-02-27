@@ -18,6 +18,15 @@ function App() {
   const [editingTokenId, setEditingTokenId] = useState<string | null>(null);
   const [newSceneName, setNewSceneName] = useState('');
   const myId = useGameStore(s => s.myId);
+  const isHost = useGameStore(s => s.isHost);
+  const activeTool = useGameStore(s => s.activeTool);
+  const toolColor = useGameStore(s => s.toolColor);
+  const toolThickness = useGameStore(s => s.toolThickness);
+  const fogEnabled = useGameStore(s => s.map.fogEnabled);
+  const dynamicLightingEnabled = useGameStore(s => s.map.dynamicLightingEnabled);
+  const scenes = useGameStore(s => s.scenes);
+  const activeSceneId = useGameStore(s => s.activeSceneId);
+  const savedAssets = useGameStore(s => s.savedAssets);
   const setIdentity = useGameStore(s => s.setIdentity);
 
   useEffect(() => {
@@ -172,19 +181,19 @@ function App() {
               <div className="flex gap-2 mb-2">
                 <button
                   onClick={() => useGameStore.getState().setActiveTool('pan')}
-                  className={`flex-1 text-xs py-1 rounded font-bold ${useGameStore.getState().activeTool === 'pan' ? 'bg-blue-600' : 'bg-gray-700 hover:bg-gray-600'}`}
+                  className={`flex-1 text-xs py-1 rounded font-bold ${activeTool === 'pan' ? 'bg-blue-600' : 'bg-gray-700 hover:bg-gray-600'}`}
                 >
                   ✋ Pan
                 </button>
                 <button
                   onClick={() => useGameStore.getState().setActiveTool('draw')}
-                  className={`flex-1 text-xs py-1 rounded font-bold ${useGameStore.getState().activeTool === 'draw' ? 'bg-blue-600' : 'bg-gray-700 hover:bg-gray-600'}`}
+                  className={`flex-1 text-xs py-1 rounded font-bold ${activeTool === 'draw' ? 'bg-blue-600' : 'bg-gray-700 hover:bg-gray-600'}`}
                 >
                   ✏️ Draw
                 </button>
                 <button
                   onClick={() => useGameStore.getState().setActiveTool('text')}
-                  className={`flex-1 text-xs py-1 rounded font-bold ${useGameStore.getState().activeTool === 'text' ? 'bg-pink-600' : 'bg-gray-700 hover:bg-gray-600'}`}
+                  className={`flex-1 text-xs py-1 rounded font-bold ${activeTool === 'text' ? 'bg-pink-600' : 'bg-gray-700 hover:bg-gray-600'}`}
                 >
                   📝 Text
                 </button>
@@ -194,29 +203,29 @@ function App() {
               <div className="flex gap-1">
                 <button
                   onClick={() => useGameStore.getState().setActiveTool('circle')}
-                  className={`flex-1 text-xs py-1 rounded font-bold ${useGameStore.getState().activeTool === 'circle' ? 'bg-orange-600' : 'bg-gray-700 hover:bg-gray-600'}`}
+                  className={`flex-1 text-xs py-1 rounded font-bold ${activeTool === 'circle' ? 'bg-orange-600' : 'bg-gray-700 hover:bg-gray-600'}`}
                 >
                   ⭕ Circle
                 </button>
                 <button
                   onClick={() => useGameStore.getState().setActiveTool('cone')}
-                  className={`flex-1 text-xs py-1 rounded font-bold ${useGameStore.getState().activeTool === 'cone' ? 'bg-orange-600' : 'bg-gray-700 hover:bg-gray-600'}`}
+                  className={`flex-1 text-xs py-1 rounded font-bold ${activeTool === 'cone' ? 'bg-orange-600' : 'bg-gray-700 hover:bg-gray-600'}`}
                 >
                   📐 Cone
                 </button>
                 <button
                   onClick={() => useGameStore.getState().setActiveTool('cube')}
-                  className={`flex-1 text-xs py-1 rounded font-bold ${useGameStore.getState().activeTool === 'cube' ? 'bg-orange-600' : 'bg-gray-700 hover:bg-gray-600'}`}
+                  className={`flex-1 text-xs py-1 rounded font-bold ${activeTool === 'cube' ? 'bg-orange-600' : 'bg-gray-700 hover:bg-gray-600'}`}
                 >
                   ⬛ Cube
                 </button>
               </div>
 
-              {useGameStore.getState().activeTool !== 'pan' && (
+              {activeTool !== 'pan' && (
                 <div className="flex gap-2 items-center mt-2">
                   <input
                     type="color"
-                    value={useGameStore.getState().toolColor}
+                    value={toolColor}
                     onChange={(e) => useGameStore.getState().setToolColor(e.target.value)}
                     className="w-8 h-8 rounded cursor-pointer bg-transparent border-none p-0"
                   />
@@ -224,7 +233,7 @@ function App() {
                     type="range"
                     min="1"
                     max="10"
-                    value={useGameStore.getState().toolThickness}
+                    value={toolThickness}
                     onChange={(e) => useGameStore.getState().setToolThickness(parseInt(e.target.value))}
                     className="flex-1"
                   />
@@ -233,7 +242,7 @@ function App() {
               <p className="text-[10px] text-gray-500 mt-1">Hold <kbd className="bg-gray-800 px-1 rounded">Alt</kbd> and drag for Ruler.</p>
             </div>
 
-            {useGameStore.getState().isHost && (
+            {isHost && (
               <label className="text-left px-3 py-2 bg-indigo-900/50 hover:bg-indigo-800 rounded text-sm transition-colors cursor-pointer block border border-indigo-700 font-bold">
                 <span>📜 Share Handout</span>
                 <input
@@ -256,7 +265,7 @@ function App() {
               </label>
             )}
 
-            {useGameStore.getState().isHost && (
+            {isHost && (
               <div className="mt-4 p-2 bg-gray-900 border border-gray-700 rounded-lg space-y-2">
                 <h3 className="text-xs font-bold uppercase text-gray-500 flex items-center gap-2">
                   🌫️ Fog of War
@@ -268,10 +277,10 @@ function App() {
                       useGameStore.getState().toggleFog(newState);
                       networkManager.sendAction('SYNC_STATE', { map: useGameStore.getState().map });
                     }}
-                    className={`flex-1 text-xs py-1 rounded font-bold ${useGameStore.getState().map.fogEnabled ? 'bg-red-700 hover:bg-red-600' : 'bg-green-700 hover:bg-green-600'
+                    className={`flex-1 text-xs py-1 rounded font-bold ${fogEnabled ? 'bg-red-700 hover:bg-red-600' : 'bg-green-700 hover:bg-green-600'
                       }`}
                   >
-                    {useGameStore.getState().map.fogEnabled ? 'Disable Fog' : 'Enable Fog'}
+                    {fogEnabled ? 'Disable Fog' : 'Enable Fog'}
                   </button>
                   <button
                     onClick={() => {
@@ -288,7 +297,7 @@ function App() {
             )}
 
             {/* Dynamic Lighting Controls */}
-            {useGameStore.getState().isHost && (
+            {isHost && (
               <div className="mt-4 p-2 bg-gray-900 border border-yellow-700 rounded-lg space-y-2 flex flex-col">
                 <h3 className="text-xs font-bold uppercase text-yellow-500 flex items-center justify-between">
                   💡 Dynamic Lighting
@@ -310,23 +319,23 @@ function App() {
                       useGameStore.getState().toggleDynamicLighting(newState);
                       networkManager.sendAction('SYNC_STATE', { map: useGameStore.getState().map });
                     }}
-                    className={`flex-1 text-xs py-1 rounded font-bold ${useGameStore.getState().map.dynamicLightingEnabled ? 'bg-red-700 hover:bg-red-600 text-white' : 'bg-green-700 hover:bg-green-600 text-white'
+                    className={`flex-1 text-xs py-1 rounded font-bold ${dynamicLightingEnabled ? 'bg-red-700 hover:bg-red-600 text-white' : 'bg-green-700 hover:bg-green-600 text-white'
                       }`}
                   >
-                    {useGameStore.getState().map.dynamicLightingEnabled ? 'Disable Lighting' : 'Enable Lighting'}
+                    {dynamicLightingEnabled ? 'Disable Lighting' : 'Enable Lighting'}
                   </button>
                 </div>
 
                 <div className="flex gap-2 mt-1">
                   <button
                     onClick={() => useGameStore.getState().setActiveTool('wall')}
-                    className={`flex-1 text-xs py-1 rounded font-bold ${useGameStore.getState().activeTool === 'wall' ? 'bg-yellow-600 text-white' : 'bg-gray-700 hover:bg-gray-600'}`}
+                    className={`flex-1 text-xs py-1 rounded font-bold ${activeTool === 'wall' ? 'bg-yellow-600 text-white' : 'bg-gray-700 hover:bg-gray-600'}`}
                   >
                     🧱 Draw Walls
                   </button>
                   <button
                     onClick={() => useGameStore.getState().setActiveTool('door')}
-                    className={`flex-1 text-xs py-1 rounded font-bold ${useGameStore.getState().activeTool === 'door' ? 'bg-amber-500 text-black' : 'bg-gray-700 hover:bg-gray-600'}`}
+                    className={`flex-1 text-xs py-1 rounded font-bold ${activeTool === 'door' ? 'bg-amber-500 text-black' : 'bg-gray-700 hover:bg-gray-600'}`}
                   >
                     🚪 Draw Door
                   </button>
@@ -336,7 +345,7 @@ function App() {
             )}
 
             {/* GM Tools: Scene Manager */}
-            {useGameStore.getState().isHost && (
+            {isHost && (
               <div className="mt-4 p-2 bg-gray-900 border border-purple-700 rounded-lg space-y-2">
                 <h3 className="text-xs font-bold uppercase text-purple-400">🗺️ Scene Manager</h3>
                 <div className="flex gap-1">
@@ -362,7 +371,7 @@ function App() {
                   </button>
                 </div>
                 <div className="flex flex-col gap-1 max-h-32 overflow-y-auto pr-1">
-                  {useGameStore.getState().scenes.map(scene => (
+                  {scenes.map(scene => (
                     <button
                       key={scene.id}
                       onClick={() => {
@@ -376,7 +385,7 @@ function App() {
                           walls: state.walls
                         });
                       }}
-                      className={`text-left px-2 py-1 text-xs rounded transition-colors truncate ${useGameStore.getState().activeSceneId === scene.id ? 'bg-purple-800 font-bold' : 'bg-gray-700 hover:bg-gray-600'}`}
+                      className={`text-left px-2 py-1 text-xs rounded transition-colors truncate ${activeSceneId === scene.id ? 'bg-purple-800 font-bold' : 'bg-gray-700 hover:bg-gray-600'}`}
                     >
                       {scene.name}
                     </button>
@@ -386,7 +395,7 @@ function App() {
             )}
 
             {/* GM Tools: Favorite Assets Library */}
-            {useGameStore.getState().isHost && (
+            {isHost && (
               <div className="mt-4 p-2 bg-gray-900 border border-emerald-700 rounded-lg space-y-2">
                 <h3 className="text-xs font-bold uppercase text-emerald-400 flex justify-between items-center">
                   📚 Asset Library
@@ -417,11 +426,11 @@ function App() {
                     />
                   </label>
                 </h3>
-                {useGameStore.getState().savedAssets.length === 0 ? (
+                {savedAssets.length === 0 ? (
                   <p className="text-[10px] text-gray-500 italic">No saved assets. Upload images to create a quick-drop library.</p>
                 ) : (
                   <div className="grid grid-cols-4 gap-2 max-h-40 overflow-y-auto p-1">
-                    {useGameStore.getState().savedAssets.map(asset => (
+                    {savedAssets.map(asset => (
                       <div
                         key={asset.id}
                         className="relative group cursor-pointer"
