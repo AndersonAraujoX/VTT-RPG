@@ -7,8 +7,17 @@ class DiceService {
     async init() {
         if (this.isInitialized) return;
 
+        // Construct absolute asset path based on current window location
+        // This solves GitHub pages dropping the repo name from the path if there is no trailing slash
+        let path = window.location.pathname;
+        if (path.includes('.html')) {
+            path = path.substring(0, path.lastIndexOf('/'));
+        }
+        if (!path.endsWith('/')) path += '/';
+        const absoluteAssetPath = window.location.origin + path + 'dice-box/';
+
         this.box = new DiceBox("#dice-box-container", {
-            assetPath: import.meta.env.BASE_URL + 'dice-box/',
+            assetPath: absoluteAssetPath,
             theme: 'default',
             themeColor: '#8b5cf6', // purple-500
             scale: 6,
