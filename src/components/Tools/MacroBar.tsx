@@ -101,7 +101,7 @@ export const MacroBar: React.FC = () => {
         <div className="flex items-center gap-2 p-2 bg-gray-900 border-t border-gray-700 pointer-events-auto">
             <span className="text-gray-500 text-xs font-bold uppercase mr-2">Macros</span>
 
-            {macros.map(m => (
+            {(macros || []).map(m => (
                 <div key={m.id} className="group relative flex items-center">
                     <button
                         onClick={() => handleExecute(m)}

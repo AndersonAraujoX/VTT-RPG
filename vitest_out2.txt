@@ -1,0 +1,16 @@
+﻿
+ RUN  v4.0.18 C:/Users/Anderson/Documents/Projeto/VTT/VTT-RPG
+
+ ÔØ» src/components/Tools/MacroBar.test.tsx (2 tests | 2 failed) 5ms
+     ├ù renders without crashing even if macros is undefined in the store (corrupted save) 3ms
+     ├ù renders the add macro button and displays correct macros when present 1ms
+ ÔØ» src/components/Tools/TurnTracker.test.tsx (3 tests | 3 failed) 5ms
+     ├ù returns null and does not crash when turnOrder is empty 3ms
+     ├ù returns null and does not crash when turnOrder is undefined (corrupted save) 1ms
+     ├ù renders the initiative list correctly when turnOrder is populated 1ms
+
+ Test Files  2 failed (2)
+      Tests  5 failed (5)
+   Start at  12:24:28
+   Duration  425ms (transform 190ms, setup 0ms, import 528ms, tests 10ms, environment 0ms)
+

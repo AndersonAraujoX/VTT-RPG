@@ -413,7 +413,7 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
     // Update Map Background
     useEffect(() => {
         const updateBackground = async () => {
-            if (!mapState.url || !appRef.current) return;
+            if (!mapState?.url || !appRef.current) return;
 
             try {
                 console.log("MapBoard: Starting Assets.load for map url of length", mapState.url.length);
@@ -480,7 +480,7 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
                         sprite.anchor.set(0.5);
 
                         // Scale to fit the cell exactly
-                        const targetSize = mapState.scale - 4;
+                        const targetSize = (mapState?.scale || 50) - 4;
                         // Use texture width fallback in case it's not fully initialized
                         const tW = tex.width || 256;
                         const tH = tex.height || 256;
@@ -489,7 +489,7 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
 
                         // Mask it circularly
                         const mask = new Graphics();
-                        mask.circle(0, 0, mapState.scale / 2 - 2);
+                        mask.circle(0, 0, (mapState?.scale || 50) / 2 - 2);
                         mask.fill(0xffffff);
 
                         // We must add both sprite and mask to the container
@@ -690,7 +690,7 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
     // Render Fog of War
     useEffect(() => {
         fogContainerRef.current.removeChildren();
-        if (!mapState.fogEnabled) {
+        if (!mapState?.fogEnabled) {
             fogContainerRef.current.visible = false;
             return;
         }
@@ -703,23 +703,25 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
         g.rect(-10000, -10000, 20000, 20000);
 
         // Draw circles for revealed areas and explicitly cut them out
-        mapState.revealedAreas.forEach(area => {
-            g.circle(area.x, area.y, area.radius);
-            g.cut(); // PixiJS v8 path boolean operation
-        });
+        if (Array.isArray(mapState.revealedAreas)) {
+            mapState.revealedAreas.forEach(area => {
+                g.circle(area.x, area.y, area.radius);
+                g.cut(); // PixiJS v8 path boolean operation
+            });
+        }
 
         g.fill({ color: 0x000000, alpha: 0.95 });
 
         fogContainerRef.current.addChild(g);
 
-    }, [mapState.fogEnabled, mapState.revealedAreas]);
+    }, [mapState?.fogEnabled, mapState?.revealedAreas]);
 
     // Render Map Texts
     useEffect(() => {
         textContainerRef.current.removeChildren();
 
-        texts.forEach(t => {
-            const hexColor = t.color.replace('#', '0x');
+        if (Array.isArray(texts)) texts.forEach(t => {
+            const hexColor = (t.color || '#ffffff').replace('#', '0x');
             const pt = new Text({
                 text: t.text,
                 style: new TextStyle({
@@ -777,7 +779,7 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
     // Dynamic Lighting & Raycasting
     useEffect(() => {
         lightingContainerRef.current.removeChildren();
-        if (!mapState.dynamicLightingEnabled) {
+        if (!mapState?.dynamicLightingEnabled) {
             lightingContainerRef.current.visible = false;
             return;
         }

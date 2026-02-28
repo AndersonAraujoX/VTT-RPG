@@ -22,7 +22,7 @@ export const TurnTracker: React.FC = () => {
         networkManager.sendAction('SYNC_STATE', { turnOrder: useGameStore.getState().turnOrder });
     }
 
-    if (turnOrder.length === 0) return null;
+    if ((turnOrder || []).length === 0) return null;
 
     return (
         <div className="bg-gray-900/90 border border-gray-700 rounded-lg p-3 text-white w-64 shadow-2xl backdrop-blur-sm pointer-events-auto">
@@ -35,7 +35,7 @@ export const TurnTracker: React.FC = () => {
             </h3>
 
             <div className="space-y-1 max-h-64 overflow-y-auto">
-                {turnOrder.map((entity, index) => (
+                {(turnOrder || []).map((entity, index) => (
                     <div
                         key={entity.id}
                         className={`flex items-center gap-2 p-2 rounded text-sm ${index === 0 ? 'bg-blue-900/50 border border-blue-500' : 'bg-gray-800'}`}
