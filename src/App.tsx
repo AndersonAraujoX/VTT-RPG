@@ -18,38 +18,7 @@ import { SceneManager } from './components/Tools/SceneManager';
 import { AssetLibrary } from './components/Tools/AssetLibrary';
 import { SaveLoadMenu } from './components/Tools/SaveLoadMenu';
 
-const processImageUpload = (file: File, isMap: boolean): Promise<string> => {
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const dataUrl = ev.target?.result as string;
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const maxW = isMap ? 2048 : 256;
-        const maxH = isMap ? 2048 : 256;
-        let w = img.width || maxW;
-        let h = img.height || maxH;
-
-        if (w > maxW || h > maxH) {
-          const ratio = Math.min(maxW / w, maxH / h);
-          w = Math.floor(w * ratio);
-          h = Math.floor(h * ratio);
-        }
-
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext('2d');
-        if (ctx) ctx.drawImage(img, 0, 0, w, h);
-
-        resolve(canvas.toDataURL(isMap ? 'image/jpeg' : 'image/png', isMap ? 0.8 : undefined));
-      };
-      img.onerror = () => resolve(dataUrl); // fallback
-      img.src = dataUrl;
-    };
-    reader.readAsDataURL(file);
-  });
-};
+import { processImageUpload } from './utils/imageHandler';
 
 function App() {
   const [targetPeerId, setTargetPeerId] = useState('');

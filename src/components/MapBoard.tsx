@@ -414,6 +414,7 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
 
             try {
                 const texture = await Assets.load(mapState.url);
+                if (!appRef.current) return;
 
                 if (backgroundSpriteRef.current) {
                     mapContainerRef.current.removeChild(backgroundSpriteRef.current);
@@ -423,7 +424,7 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
                 backgroundSpriteRef.current = sprite;
                 mapContainerRef.current.addChildAt(sprite, 0); // Add to bottom
             } catch (e) {
-                console.error("Failed to load map bg", e);
+                console.error("Failed to load map bg:", e);
             }
         };
         updateBackground();
@@ -464,7 +465,10 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
 
                         // Scale to fit the cell exactly
                         const targetSize = mapState.scale - 4;
-                        const scale = Math.max(targetSize / sprite.texture.width, targetSize / sprite.texture.height);
+                        // Use texture width fallback in case it's not fully initialized
+                        const tW = tex.width || 256;
+                        const tH = tex.height || 256;
+                        const scale = Math.max(targetSize / tW, targetSize / tH);
                         sprite.scale.set(scale);
 
                         // Mask it circularly
@@ -488,9 +492,9 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
                         // Add it behind HP bar etc (at index 0 or 1 depending on auras)
                         graphics.addChildAt(imgContainer, token.auras && token.auras.length > 0 ? token.auras.length : 0);
                     } catch (e) {
-                        console.error('Failed to create token texture', e);
+                        console.error('Failed to create token texture:', e);
                     }
-                }).catch(e => console.error("Token Image Load Failed", e));
+                }).catch(e => console.error("Token Image Load Failed:", e));
             } else {
                 baseShape.circle(0, 0, mapState.scale / 2 - 2);
                 baseShape.fill(0xff0000);
