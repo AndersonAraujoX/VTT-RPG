@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Application, Sprite, Container, Graphics, Text, TextStyle, Texture } from 'pixi.js';
+import { Application, Sprite, Container, Graphics, Text, TextStyle, Assets } from 'pixi.js';
 import { useGameStore } from '../store/gameStore';
 import { networkManager } from '../services/network';
 
@@ -413,25 +413,7 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
             if (!mapState.url || !appRef.current) return;
 
             try {
-                // To safely load base64, SVG, or remote without WebGL crashing on bad data:
-                // We rasterize it into an offscreen canvas first.
-                const img = new Image();
-                if (mapState.url.startsWith('http')) {
-                    img.crossOrigin = 'anonymous';
-                }
-                await new Promise((resolve, reject) => {
-                    img.onload = resolve;
-                    img.onerror = reject;
-                    img.src = mapState.url as string;
-                });
-
-                const canvas = document.createElement('canvas');
-                canvas.width = img.width || 1024;
-                canvas.height = img.height || 1024;
-                const ctx = canvas.getContext('2d');
-                if (ctx) ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-                const texture = Texture.from(canvas);
+                const texture = await Assets.load(mapState.url);
 
                 if (backgroundSpriteRef.current) {
                     mapContainerRef.current.removeChild(backgroundSpriteRef.current);
@@ -472,20 +454,9 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
 
             // Base Token Shape / Image
             if (token.image) {
-                const img = new Image();
-                if (token.image.startsWith('http')) {
-                    img.crossOrigin = 'anonymous';
-                }
-                img.onload = () => {
+                Assets.load(token.image).then((tex) => {
                     if (graphics.destroyed) return;
                     try {
-                        const canvas = document.createElement('canvas');
-                        canvas.width = img.width || 256;
-                        canvas.height = img.height || 256;
-                        const ctx = canvas.getContext('2d');
-                        if (ctx) ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-                        const tex = Texture.from(canvas);
                         const sprite = new Sprite(tex);
 
                         // Center the sprite
@@ -519,9 +490,7 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
                     } catch (e) {
                         console.error('Failed to create token texture', e);
                     }
-                };
-                img.onerror = (e) => console.error("Token Image failed to load", e);
-                img.src = token.image;
+                }).catch(e => console.error("Token Image Load Failed", e));
             } else {
                 baseShape.circle(0, 0, mapState.scale / 2 - 2);
                 baseShape.fill(0xff0000);

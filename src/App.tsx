@@ -18,6 +18,39 @@ import { SceneManager } from './components/Tools/SceneManager';
 import { AssetLibrary } from './components/Tools/AssetLibrary';
 import { SaveLoadMenu } from './components/Tools/SaveLoadMenu';
 
+const processImageUpload = (file: File, isMap: boolean): Promise<string> => {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const dataUrl = ev.target?.result as string;
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const maxW = isMap ? 2048 : 256;
+        const maxH = isMap ? 2048 : 256;
+        let w = img.width || maxW;
+        let h = img.height || maxH;
+
+        if (w > maxW || h > maxH) {
+          const ratio = Math.min(maxW / w, maxH / h);
+          w = Math.floor(w * ratio);
+          h = Math.floor(h * ratio);
+        }
+
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (ctx) ctx.drawImage(img, 0, 0, w, h);
+
+        resolve(canvas.toDataURL(isMap ? 'image/jpeg' : 'image/png', isMap ? 0.8 : undefined));
+      };
+      img.onerror = () => resolve(dataUrl); // fallback
+      img.src = dataUrl;
+    };
+    reader.readAsDataURL(file);
+  });
+};
+
 function App() {
   const [targetPeerId, setTargetPeerId] = useState('');
   const [editingTokenId, setEditingTokenId] = useState<string | null>(null);
@@ -108,15 +141,11 @@ function App() {
                 type="file"
                 accept="image/*"
                 className="hidden"
-                onChange={(e) => {
+                onChange={async (e) => {
                   const file = e.target.files?.[0];
                   if (file) {
-                    const reader = new FileReader();
-                    reader.onload = (ev) => {
-                      const url = ev.target?.result as string;
-                      networkManager.sendAction('UPDATE_MAP', { url });
-                    };
-                    reader.readAsDataURL(file);
+                    const url = await processImageUpload(file, true);
+                    networkManager.sendAction('UPDATE_MAP', { url });
                   }
                   e.target.value = '';
                 }}
@@ -129,24 +158,20 @@ function App() {
                 type="file"
                 accept="image/*"
                 className="hidden"
-                onChange={(e) => {
+                onChange={async (e) => {
                   const file = e.target.files?.[0];
                   if (file) {
-                    const reader = new FileReader();
-                    reader.onload = (ev) => {
-                      const imgUrl = ev.target?.result as string;
-                      const t = {
-                        id: Date.now().toString(),
-                        x: 3,
-                        y: 3,
-                        size: 1,
-                        image: imgUrl,
-                        label: 'Token',
-                        stats: { hp: 10, maxHp: 10, ac: 10 }
-                      };
-                      networkManager.sendAction('ADD_TOKEN', t);
+                    const imgUrl = await processImageUpload(file, false);
+                    const t = {
+                      id: Date.now().toString(),
+                      x: 3,
+                      y: 3,
+                      size: 1,
+                      image: imgUrl,
+                      label: 'Token',
+                      stats: { hp: 10, maxHp: 10, ac: 10 }
                     };
-                    reader.readAsDataURL(file);
+                    networkManager.sendAction('ADD_TOKEN', t);
                   }
                   e.target.value = '';
                 }}
