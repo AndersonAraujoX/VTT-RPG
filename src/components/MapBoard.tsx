@@ -78,16 +78,19 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
             containerRef.current!.appendChild(app.canvas);
             appRef.current = app;
 
-            // Setup Layers
-            app.stage.addChild(wallContainerRef.current);
-            app.stage.addChild(fogContainerRef.current);
-            app.stage.addChild(textContainerRef.current);
-            app.stage.addChild(tokenContainerRef.current);
-            app.stage.addChild(lightingContainerRef.current);
-            mapContainerRef.current.addChild(fogContainerRef.current);
+            // Setup Layers Hierarchy
+            // The mapContainer acts as the main camera. Everything that should pan/zoom must be inside it.
+            app.stage.addChild(mapContainerRef.current);
+
+            // Add layers in z-order (bottom to top)
+            // Note: backgroundSprite is added dynamically at index 0 later, so these will be above it
             mapContainerRef.current.addChild(wallContainerRef.current);
+            mapContainerRef.current.addChild(textContainerRef.current);
+            mapContainerRef.current.addChild(tokenContainerRef.current);
             mapContainerRef.current.addChild(pingContainerRef.current);
             mapContainerRef.current.addChild(overlayContainerRef.current);
+            mapContainerRef.current.addChild(fogContainerRef.current);
+            mapContainerRef.current.addChild(lightingContainerRef.current);
 
             // Interaction (Pan/Zoom and Tools)
             let isPanning = false;
@@ -413,8 +416,11 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
             if (!mapState.url || !appRef.current) return;
 
             try {
+                console.log("MapBoard: Starting Assets.load for map url of length", mapState.url.length);
                 const texture = await Assets.load(mapState.url);
                 if (!appRef.current) return;
+
+                console.log("MapBoard: Successfully loaded map texture:", texture.width, "x", texture.height);
 
                 if (backgroundSpriteRef.current) {
                     mapContainerRef.current.removeChild(backgroundSpriteRef.current);
@@ -423,6 +429,16 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
                 const sprite = new Sprite(texture);
                 backgroundSpriteRef.current = sprite;
                 mapContainerRef.current.addChildAt(sprite, 0); // Add to bottom
+
+                console.log("MapBoard Debug: mapContainer hierarchy:", mapContainerRef.current.children.map(c => ({
+                    isSprite: c instanceof Sprite,
+                    width: c.width,
+                    height: c.height,
+                    x: c.x,
+                    y: c.y,
+                    alpha: c.alpha,
+                    visible: c.visible
+                })));
             } catch (e) {
                 console.error("Failed to load map bg:", e);
             }
