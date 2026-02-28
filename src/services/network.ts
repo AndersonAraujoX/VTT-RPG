@@ -1,4 +1,5 @@
-import { Peer, DataConnection } from 'peerjs';
+import { Peer } from 'peerjs';
+import type { DataConnection } from 'peerjs';
 import { useGameStore } from '../store/gameStore';
 
 export class NetworkManager {
