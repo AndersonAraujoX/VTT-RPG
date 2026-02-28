@@ -67,14 +67,22 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
     useEffect(() => {
         if (!containerRef.current) return;
 
+        let isMounted = true;
+        const app = new Application();
+
         const initPixi = async () => {
-            const app = new Application();
             await app.init({
                 resizeTo: containerRef.current!,
                 backgroundColor: 0x1a1a1a,
                 antialias: true
             });
 
+            if (!isMounted) {
+                app.destroy({ removeView: true });
+                return;
+            }
+
+            containerRef.current!.innerHTML = ''; // Keep it clean
             containerRef.current!.appendChild(app.canvas);
             appRef.current = app;
 
@@ -406,7 +414,11 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
         initPixi();
 
         return () => {
-            appRef.current?.destroy({ removeView: true });
+            isMounted = false;
+            if (appRef.current) {
+                appRef.current.destroy({ removeView: true });
+                appRef.current = null;
+            }
         };
     }, []);
 
@@ -970,5 +982,5 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
         });
     }, [pings, mapState.scale]);
 
-    return <div ref={containerRef} className="w-full h-full" />;
+    return <div ref={containerRef} className="w-full h-full absolute inset-0 overflow-hidden" />;
 };
