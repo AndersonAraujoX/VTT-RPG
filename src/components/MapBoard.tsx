@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { Application, Sprite, Container, Graphics, Text, TextStyle, Assets } from 'pixi.js';
 import { useGameStore } from '../store/gameStore';
 import { networkManager } from '../services/network';
+import { processImageUpload } from '../utils/imageHandler';
 
 // --- Raycasting Math Helper ---
 function getIntersection(ray1: { x: number, y: number }, ray2: { x: number, y: number }, seg1: { x: number, y: number }, seg2: { x: number, y: number }) {
@@ -43,6 +44,8 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const appRef = useRef<Application | null>(null);
     const mapState = useGameStore((state) => state.map);
+    const mapAssets = useGameStore((state) => state.mapAssets);
+    const activeLayer = useGameStore((state) => state.activeLayer);
     const drawings = useGameStore((state) => state.drawings);
     const walls = useGameStore((state) => state.walls);
     const tokens = useGameStore((state) => state.tokens);
@@ -53,6 +56,7 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
 
     // Refs for managing Pixi objects
     const mapContainerRef = useRef<Container>(new Container());
+    const mapAssetsContainerRef = useRef<Container>(new Container());
     const tokenContainerRef = useRef<Container>(new Container());
     const fogContainerRef = useRef<Container>(new Container());
     const lightingContainerRef = useRef<Container>(new Container());
@@ -61,7 +65,6 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
     const pingContainerRef = useRef<Container>(new Container());
     const textContainerRef = useRef<Container>(new Container());
     const overlayContainerRef = useRef<Container>(new Container()); // For tools like drawing reveal radius
-    const backgroundSpriteRef = useRef<Sprite | null>(null);
 
     // Initialize Pixi
     useEffect(() => {
@@ -91,7 +94,7 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
             app.stage.addChild(mapContainerRef.current);
 
             // Add layers in z-order (bottom to top)
-            // Note: backgroundSprite is added dynamically at index 0 later, so these will be above it
+            mapContainerRef.current.addChild(mapAssetsContainerRef.current);
             mapContainerRef.current.addChild(wallContainerRef.current);
             mapContainerRef.current.addChild(textContainerRef.current);
             mapContainerRef.current.addChild(tokenContainerRef.current);
@@ -390,6 +393,51 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
                 e.preventDefault();
             });
 
+            // Native Drag & Drop from OS
+            app.canvas.addEventListener('dragover', (e) => {
+                e.preventDefault();
+            });
+
+            app.canvas.addEventListener('drop', async (e) => {
+                e.preventDefault();
+                const file = e.dataTransfer?.files?.[0];
+                if (file && file.type.startsWith('image/')) {
+                    const rect = app.canvas.getBoundingClientRect();
+                    const mouseX = e.clientX - rect.left;
+                    const mouseY = e.clientY - rect.top;
+
+                    const worldX = (mouseX - mapContainerRef.current.position.x) / mapContainerRef.current.scale.x;
+                    const worldY = (mouseY - mapContainerRef.current.position.y) / mapContainerRef.current.scale.y;
+
+                    const isMap = window.confirm("Set as Background Map? (Click Cancel to drop as a Character Token instead)");
+
+                    if (isMap) {
+                        const url = await processImageUpload(file, true);
+                        useGameStore.getState().updateMap({ url });
+                        networkManager.sendAction('UPDATE_MAP', { url });
+                    } else {
+                        const imgUrl = await processImageUpload(file, false);
+
+                        // Default token grid coordinates
+                        const finalGridX = Math.floor(worldX / useGameStore.getState().map.scale);
+                        const finalGridY = Math.floor(worldY / useGameStore.getState().map.scale);
+
+                        const t = {
+                            id: Date.now().toString(),
+                            x: finalGridX,
+                            y: finalGridY,
+                            size: 1,
+                            image: imgUrl,
+                            label: 'Token',
+                            stats: { hp: 10, maxHp: 10, ac: 10 },
+                            ownerId: useGameStore.getState().myId
+                        };
+                        useGameStore.getState().addToken(t);
+                        networkManager.sendAction('ADD_TOKEN', t);
+                    }
+                }
+            });
+
             // Keyup listener to cancel measurement if Alt is released
             window.addEventListener('keyup', (e) => {
                 if (e.key === 'Alt' && measuringPoints.length > 0) {
@@ -422,41 +470,89 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
         };
     }, []);
 
-    // Update Map Background
+    // Sync Map Assets
     useEffect(() => {
-        const updateBackground = async () => {
-            if (!mapState?.url || !appRef.current) return;
+        mapAssetsContainerRef.current.removeChildren();
 
-            try {
-                console.log("MapBoard: Starting Assets.load for map url of length", mapState.url.length);
-                const texture = await Assets.load(mapState.url);
-                if (!appRef.current) return;
+        mapAssets.forEach(asset => {
+            if (!asset.image) return;
 
-                console.log("MapBoard: Successfully loaded map texture:", texture.width, "x", texture.height);
+            const graphics = new Container();
 
-                if (backgroundSpriteRef.current) {
-                    mapContainerRef.current.removeChild(backgroundSpriteRef.current);
+            Assets.load(asset.image).then((tex) => {
+                if (graphics.destroyed) return;
+                try {
+                    const sprite = new Sprite(tex);
+                    sprite.anchor.set(0.5); // Center origin
+
+                    // Simple scaling: MapAssets cover w x h logic
+                    const scaleX = asset.width / tex.width;
+                    const scaleY = asset.height / tex.height;
+                    sprite.scale.set(Math.min(scaleX, scaleY)); // maintain aspect
+
+                    graphics.addChild(sprite);
+                } catch (e) {
+                    console.error('Failed to create map asset texture:', e);
                 }
+            }).catch(e => console.error("Map Asset Image Load Failed:", e));
 
-                const sprite = new Sprite(texture);
-                backgroundSpriteRef.current = sprite;
-                mapContainerRef.current.addChildAt(sprite, 0); // Add to bottom
+            graphics.position.set(asset.x, asset.y);
 
-                console.log("MapBoard Debug: mapContainer hierarchy:", mapContainerRef.current.children.map(c => ({
-                    isSprite: c instanceof Sprite,
-                    width: c.width,
-                    height: c.height,
-                    x: c.x,
-                    y: c.y,
-                    alpha: c.alpha,
-                    visible: c.visible
-                })));
-            } catch (e) {
-                console.error("Failed to load map bg:", e);
+            // Interaction
+            if (isHost) {
+                graphics.eventMode = activeLayer === 'map' ? 'static' : 'none';
+                graphics.cursor = activeLayer === 'map' ? 'pointer' : 'default';
+
+                let dragData: any = null;
+
+                graphics.on('pointerdown', (event) => {
+                    if (event.button === 0 && activeLayer === 'map') {
+                        dragData = event;
+                        graphics.alpha = 0.8;
+                        event.stopPropagation();
+                    }
+                });
+
+                graphics.on('rightclick', (event) => {
+                    if (activeLayer === 'map') {
+                        event.stopPropagation();
+                        event.preventDefault();
+                        if (window.confirm("Delete this map asset?")) {
+                            networkManager.sendAction('REMOVE_MAP_ASSET', asset.id);
+                        }
+                    }
+                });
+
+                graphics.on('pointermove', (event) => {
+                    if (dragData && activeLayer === 'map') {
+                        // @ts-ignore
+                        const newPos = event.getLocalPosition(graphics.parent);
+                        graphics.position.set(newPos.x, newPos.y);
+                    }
+                });
+
+                const onDragEnd = () => {
+                    if (dragData) {
+                        dragData = null;
+                        graphics.alpha = 1;
+                        // Snap Map Assets tightly to grid (e.g. 50 grid scale)
+                        const snapX = Math.round(graphics.x / mapState.scale) * mapState.scale;
+                        const snapY = Math.round(graphics.y / mapState.scale) * mapState.scale;
+
+                        networkManager.sendAction('UPDATE_MAP_ASSET', {
+                            id: asset.id,
+                            data: { x: snapX, y: snapY }
+                        });
+                    }
+                };
+
+                graphics.on('pointerup', onDragEnd);
+                graphics.on('pointerupoutside', onDragEnd);
             }
-        };
-        updateBackground();
-    }, [mapState.url]);
+
+            mapAssetsContainerRef.current.addChild(graphics);
+        });
+    }, [mapAssets, activeLayer, mapState.scale, isHost]);
 
     // Sync Tokens
     useEffect(() => {
@@ -598,17 +694,17 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
                 }
             }
 
-            graphics.eventMode = 'static';
-            graphics.cursor = 'pointer';
-
             let dragData: any = null;
             let startPos = { x: 0, y: 0 };
             let lastClickTime = 0;
 
             // Dragging Logic
             if (isHost || token.ownerId === myId) {
+                graphics.eventMode = activeLayer === 'token' ? 'static' : 'none';
+                graphics.cursor = activeLayer === 'token' ? 'pointer' : 'default';
+
                 graphics.on('pointerdown', (event) => {
-                    if (event.button === 0) { // Left click to drag
+                    if (event.button === 0 && activeLayer === 'token') {
                         // Double Click Detection
                         const now = Date.now();
                         if (now - lastClickTime < 300 && onEditToken) {
@@ -696,8 +792,7 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
 
             tokenContainerRef.current.addChild(graphics);
         });
-
-    }, [tokens, mapState.scale, isHost, myId, mapState.url]);
+    }, [tokens, mapState.scale, isHost, myId, onEditToken, activeLayer]);
 
     // Render Fog of War
     useEffect(() => {

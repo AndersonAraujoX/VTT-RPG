@@ -17,14 +17,15 @@ import { GMSettings } from './components/Tools/GMSettings';
 import { SceneManager } from './components/Tools/SceneManager';
 import { AssetLibrary } from './components/Tools/AssetLibrary';
 import { SaveLoadMenu } from './components/Tools/SaveLoadMenu';
-
 import { processImageUpload } from './utils/imageHandler';
 
-function App() {
+export function App() {
   const [targetPeerId, setTargetPeerId] = useState('');
   const [editingTokenId, setEditingTokenId] = useState<string | null>(null);
-  const myId = useGameStore(s => s.myId);
-  const setIdentity = useGameStore(s => s.setIdentity);
+  const {
+    myId, setIdentity,
+    activeLayer, setActiveLayer
+  } = useGameStore();
 
   useEffect(() => {
     // Initialize Network
@@ -100,6 +101,25 @@ function App() {
           </div>
         </div>
 
+        {/* Layer Selection */}
+        <div className="p-4 border-b border-gray-700">
+          <h2 className="text-xs font-bold uppercase text-gray-500 mb-2">Active Layer</h2>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setActiveLayer('token')}
+              className={`flex-1 py-1 text-sm font-bold rounded ${activeLayer === 'token' ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
+            >
+              Objects
+            </button>
+            <button
+              onClick={() => setActiveLayer('map')}
+              className={`flex-1 py-1 text-sm font-bold rounded ${activeLayer === 'map' ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`}
+            >
+              Map
+            </button>
+          </div>
+        </div>
+
         {/* Tools Menu */}
         <div className="flex-1 p-4 overflow-y-auto">
           <h2 className="text-xs font-bold uppercase text-gray-500 mb-2">Tools</h2>
@@ -114,7 +134,17 @@ function App() {
                   const file = e.target.files?.[0];
                   if (file) {
                     const url = await processImageUpload(file, true);
-                    networkManager.sendAction('UPDATE_MAP', { url });
+                    const newAsset = {
+                      id: Date.now().toString(),
+                      x: 0,
+                      y: 0,
+                      width: 1920,
+                      height: 1080,
+                      image: url,
+                      locked: false
+                    };
+                    useGameStore.getState().addMapAsset(newAsset);
+                    networkManager.sendAction('ADD_MAP_ASSET', newAsset);
                   }
                   e.target.value = '';
                 }}

@@ -78,6 +78,7 @@ export class NetworkManager {
                         type: 'SYNC_STATE',
                         payload: {
                             tokens: store.tokens,
+                            mapAssets: store.mapAssets,
                             map: store.map,
                             chat: store.chat,
                             // turnOrder etc.
@@ -102,6 +103,12 @@ export class NetworkManager {
         switch (action) {
             case 'ADD_TOKEN': store.addToken(payload); break;
             case 'UPDATE_TOKEN': store.updateToken(payload.id, payload.data); break;
+            case 'REMOVE_TOKEN': store.removeToken(payload); break;
+
+            case 'ADD_MAP_ASSET': store.addMapAsset(payload); break;
+            case 'UPDATE_MAP_ASSET': store.updateMapAsset(payload.id, payload.data); break;
+            case 'REMOVE_MAP_ASSET': store.removeMapAsset(payload); break;
+
             case 'ADD_CHAT': store.addChatMessage(payload); break;
             case 'UPDATE_MAP': store.updateMap({ url: payload.url }); break;
             case 'ADD_TEXT': store.addText(payload); break;

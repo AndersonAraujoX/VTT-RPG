@@ -1,5 +1,15 @@
 import { create } from 'zustand';
 
+export interface MapAsset {
+    id: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    image: string;
+    locked?: boolean;
+}
+
 export interface Token {
     id: string;
     x: number;
@@ -106,31 +116,7 @@ export interface Scene {
         dynamicLightingEnabled: boolean;
     };
     tokens: Token[];
-    drawings: Drawing[];
-    walls: Wall[];
-    texts: TextItem[];
-}
-
-export interface SavedAsset {
-    id: string;
-    name: string;
-    imageUrl: string;
-    defaultSize: number;
-}
-
-export interface Scene {
-    id: string;
-    name: string;
-    map: {
-        url: string | null;
-        scale: number;
-        offsetX: number;
-        offsetY: number;
-        fogEnabled: boolean;
-        revealedAreas: { x: number, y: number, radius: number }[];
-        dynamicLightingEnabled: boolean;
-    };
-    tokens: Token[];
+    mapAssets: MapAsset[];
     drawings: Drawing[];
     walls: Wall[];
     texts: TextItem[];
@@ -148,7 +134,9 @@ export interface GameState {
     toolThickness: number;
 
     // Game Data
+    activeLayer: 'map' | 'token';
     tokens: Token[];
+    mapAssets: MapAsset[];
     map: {
         url: string | null;
         scale: number; // Pixels per grid unit (e.g. 50px)
@@ -189,6 +177,12 @@ export interface GameState {
     addChatMessage: (msg: ChatMessage) => void;
     addPing: (ping: Ping) => void;
     removePing: (id: string) => void;
+
+    // Map Layer Actions
+    setActiveLayer: (layer: 'map' | 'token') => void;
+    addMapAsset: (asset: MapAsset) => void;
+    updateMapAsset: (id: string, data: Partial<MapAsset>) => void;
+    removeMapAsset: (id: string) => void;
 
     // Map Actions
     toggleFog: (enabled: boolean) => void;
@@ -242,7 +236,9 @@ export const useGameStore = create<GameState>((set) => ({
     toolColor: '#ff0000',
     toolThickness: 3,
 
+    activeLayer: 'token',
     tokens: [],
+    mapAssets: [],
     map: {
         url: null,
         scale: 50,
@@ -271,9 +267,11 @@ export const useGameStore = create<GameState>((set) => ({
     setToolColor: (color) => set({ toolColor: color }),
     setToolThickness: (thickness) => set({ toolThickness: thickness }),
 
-    addToken: (token) => set((state) => ({ tokens: [...state.tokens, token] })),
-    updateToken: (id, data) => set((state) => {
-        const tokens = state.tokens.map((t) => {
+    setActiveLayer: (layer) => set({ activeLayer: layer }),
+
+    addToken: (token) => set((s) => ({ tokens: [...s.tokens, token] })),
+    updateToken: (id, data) => set((s) => {
+        const tokens = s.tokens.map((t) => {
             if (t.id !== id) return t;
 
             const updatedToken = { ...t, ...data };
@@ -290,7 +288,13 @@ export const useGameStore = create<GameState>((set) => ({
         });
         return { tokens };
     }),
-    removeToken: (id) => set((state) => ({ tokens: state.tokens.filter((t) => t.id !== id) })),
+    removeToken: (id) => set((s) => ({ tokens: s.tokens.filter((t) => t.id !== id) })),
+
+    addMapAsset: (asset) => set((s) => ({ mapAssets: [...s.mapAssets, asset] })),
+    updateMapAsset: (id, data) => set((s) => ({
+        mapAssets: s.mapAssets.map(m => m.id === id ? { ...m, ...data } : m)
+    })),
+    removeMapAsset: (id) => set((s) => ({ mapAssets: s.mapAssets.filter(m => m.id !== id) })),
 
     updateMap: (data: Partial<GameState['map']>) => set((state) => ({ map: { ...state.map, ...data } })),
     toggleFog: (enabled) => set((state) => ({ map: { ...state.map, fogEnabled: enabled } })),
@@ -349,6 +353,7 @@ export const useGameStore = create<GameState>((set) => ({
             id,
             name,
             map: state.map,
+            mapAssets: state.mapAssets,
             tokens: state.tokens,
             drawings: state.drawings,
             walls: state.walls,
@@ -366,10 +371,11 @@ export const useGameStore = create<GameState>((set) => ({
         return {
             activeSceneId: id,
             map: scene.map,
+            mapAssets: scene.mapAssets,
             tokens: scene.tokens,
             drawings: scene.drawings,
             walls: scene.walls,
-            texts: scene.texts || []
+            texts: scene.texts
         };
     }),
 
