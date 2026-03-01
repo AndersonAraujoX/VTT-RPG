@@ -130,8 +130,8 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
                         measuringPoints[measuringPoints.length - 1] = { x: worldX, y: worldY };
                         measuringPoints.push({ x: worldX, y: worldY });
                     }
-                } else if (e.button === 1 || (e.button === 0 && e.ctrlKey)) {
-                    // Ping System: Ctrl + Click or Middle Click (if not dragging)
+                } else if (e.button === 0 && e.ctrlKey) {
+                    // Ping System: Ctrl + Click
                     const pingId = Date.now().toString();
                     const newPing = { id: pingId, x: worldX, y: worldY, color: useGameStore.getState().toolColor || '#ffff00' };
                     useGameStore.getState().addPing(newPing);
@@ -142,10 +142,12 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
                         useGameStore.getState().removePing(pingId);
                         networkManager.sendAction('SYNC_STATE', { pings: useGameStore.getState().pings });
                     }, 3000);
-
-                    // We still allow panning if they drag:
-                    isPanning = true;
-                    lastPos = { x: e.clientX, y: e.clientY };
+                } else if (e.button === 1 || e.button === 2) {
+                    // Right or Middle click ALWAYS pans if not doing something else (like ruler)
+                    if (!e.altKey && measuringPoints.length === 0) {
+                        isPanning = true;
+                        lastPos = { x: e.clientX, y: e.clientY };
+                    }
                 } else if (e.button === 0 && useGameStore.getState().activeTool === 'draw') {
                     isDrawing = true;
                     currentDrawingPoints = [{ x: worldX, y: worldY }];
@@ -507,10 +509,9 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
                 let dragData: any = null;
 
                 graphics.on('pointerdown', (event) => {
-                    const isPanMode = useGameStore.getState().activeTool === 'pan';
                     const isModifierHeld = event.shiftKey || event.altKey;
 
-                    if (event.button === 0 && activeLayer === 'map' && isPanMode && !isModifierHeld) {
+                    if (event.button === 0 && activeLayer === 'map' && !isModifierHeld) {
                         dragData = event;
                         graphics.alpha = 0.8;
                         event.stopPropagation();
@@ -708,7 +709,6 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
                 graphics.cursor = activeLayer === 'token' ? 'pointer' : 'default';
 
                 graphics.on('pointerdown', (event) => {
-                    const isPanMode = useGameStore.getState().activeTool === 'pan';
                     const isModifierHeld = event.shiftKey || event.altKey;
 
                     if (event.button === 0 && activeLayer === 'token') {
@@ -719,8 +719,8 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
                         }
                         lastClickTime = now;
 
-                        // Only capture drag if in Pan tool and no modifier keys (Shift/Alt for Fog/Rulers) are held
-                        if (isPanMode && !isModifierHeld) {
+                        // Only capture drag if no modifier keys (Shift/Alt for Fog/Rulers) are held
+                        if (!isModifierHeld) {
                             dragData = event;
                             graphics.alpha = token.hidden ? 0.3 : 0.5;
                             startPos = { x: graphics.x, y: graphics.y };
