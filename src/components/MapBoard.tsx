@@ -354,8 +354,6 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
                         const dist = Math.sqrt(dx * dx + dy * dy);
 
                         const g = new Graphics();
-                        g.fill({ color: useGameStore.getState().toolColor, alpha: 0.3 });
-                        g.stroke({ width: useGameStore.getState().toolThickness, color: useGameStore.getState().toolColor });
 
                         if (activeTool === 'circle') {
                             g.circle(p0.x, p0.y, dist);
@@ -372,6 +370,9 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
                             g.lineTo(p2.x, p2.y);
                             g.lineTo(p0.x, p0.y);
                         }
+
+                        g.fill({ color: useGameStore.getState().toolColor, alpha: 0.3 });
+                        g.stroke({ width: useGameStore.getState().toolThickness, color: useGameStore.getState().toolColor });
 
                         overlayContainerRef.current.removeChildren();
                         overlayContainerRef.current.addChild(g);
@@ -506,7 +507,10 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
                 let dragData: any = null;
 
                 graphics.on('pointerdown', (event) => {
-                    if (event.button === 0 && activeLayer === 'map') {
+                    const isPanMode = useGameStore.getState().activeTool === 'pan';
+                    const isModifierHeld = event.shiftKey || event.altKey;
+
+                    if (event.button === 0 && activeLayer === 'map' && isPanMode && !isModifierHeld) {
                         dragData = event;
                         graphics.alpha = 0.8;
                         event.stopPropagation();
@@ -704,20 +708,24 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
                 graphics.cursor = activeLayer === 'token' ? 'pointer' : 'default';
 
                 graphics.on('pointerdown', (event) => {
+                    const isPanMode = useGameStore.getState().activeTool === 'pan';
+                    const isModifierHeld = event.shiftKey || event.altKey;
+
                     if (event.button === 0 && activeLayer === 'token') {
                         // Double Click Detection
                         const now = Date.now();
                         if (now - lastClickTime < 300 && onEditToken) {
                             onEditToken(token.id);
-                            // Prevent drag start on double click if desired, but 
-                            // dragging a tiny bit is fine.
                         }
                         lastClickTime = now;
 
-                        dragData = event;
-                        graphics.alpha = token.hidden ? 0.3 : 0.5;
-                        startPos = { x: graphics.x, y: graphics.y };
-                        event.stopPropagation();
+                        // Only capture drag if in Pan tool and no modifier keys (Shift/Alt for Fog/Rulers) are held
+                        if (isPanMode && !isModifierHeld) {
+                            dragData = event;
+                            graphics.alpha = token.hidden ? 0.3 : 0.5;
+                            startPos = { x: graphics.x, y: graphics.y };
+                            event.stopPropagation();
+                        }
                     }
                 });
 
@@ -1012,9 +1020,6 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
                 const dy = p1.y - p0.y;
                 const dist = Math.sqrt(dx * dx + dy * dy);
 
-                g.fill({ color: d.color, alpha: 0.3 });
-                g.stroke({ width: d.thickness, color: d.color });
-
                 if (d.type === 'circle') {
                     g.circle(p0.x, p0.y, dist);
                 } else if (d.type === 'cube') {
@@ -1030,6 +1035,9 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
                     g.lineTo(pB.x, pB.y);
                     g.lineTo(p0.x, p0.y);
                 }
+
+                g.fill({ color: d.color, alpha: 0.3 });
+                g.stroke({ width: d.thickness, color: d.color });
             }
             drawingContainerRef.current.addChild(g);
         });
@@ -1038,6 +1046,7 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
     // Render Pings
     useEffect(() => {
         pingContainerRef.current.removeChildren();
+        const activeTickers: ((time: any) => void)[] = [];
 
         pings.forEach(ping => {
             const g = new Graphics();
@@ -1063,18 +1072,22 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
                     if (alpha <= 0) {
                         alpha = 0;
                         if (appRef.current) appRef.current.ticker.remove(tickerCb);
+                    } else if (!ring.destroyed) {
+                        ring.scale.set(scale);
+                        ring.alpha = alpha;
                     }
-                    ring.scale.set(scale);
-                    ring.alpha = alpha;
                 };
                 appRef.current.ticker.add(tickerCb);
-
-                // Cleanup ticker on unmount/re-render to avoid memory leaks
-                return () => {
-                    if (appRef.current) appRef.current.ticker.remove(tickerCb);
-                }
+                activeTickers.push(tickerCb);
             }
         });
+
+        return () => {
+            if (appRef.current) {
+                const ticker = appRef.current.ticker;
+                activeTickers.forEach(cb => ticker.remove(cb));
+            }
+        };
     }, [pings, mapState.scale]);
 
     return <div ref={containerRef} className="w-full h-full absolute inset-0 overflow-hidden" />;

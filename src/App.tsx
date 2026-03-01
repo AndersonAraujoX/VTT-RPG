@@ -22,10 +22,10 @@ import { processImageUpload } from './utils/imageHandler';
 export function App() {
   const [targetPeerId, setTargetPeerId] = useState('');
   const [editingTokenId, setEditingTokenId] = useState<string | null>(null);
-  const {
-    myId, setIdentity,
-    activeLayer, setActiveLayer
-  } = useGameStore();
+  const myId = useGameStore(s => s.myId);
+  const setIdentity = useGameStore(s => s.setIdentity);
+  const activeLayer = useGameStore(s => s.activeLayer);
+  const setActiveLayer = useGameStore(s => s.setActiveLayer);
 
   useEffect(() => {
     // Initialize Network
