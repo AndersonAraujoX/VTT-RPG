@@ -98,12 +98,20 @@ export const Compendium: React.FC = () => {
 
             <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
                 {results.map(r => (
-                    <div key={r.index} className="flex items-center justify-between bg-gray-900 p-2 rounded text-sm text-gray-300 hover:bg-gray-700">
+                    <div
+                        key={r.index}
+                        className="flex items-center justify-between bg-gray-900 p-2 rounded text-sm text-gray-300 hover:bg-gray-700 cursor-grab active:cursor-grabbing"
+                        draggable
+                        onDragStart={(e) => {
+                            e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'compendium_monster', index: r.index }));
+                            e.dataTransfer.effectAllowed = 'copy';
+                        }}
+                    >
                         <span className="truncate flex-1">{r.name}</span>
                         <button
                             onClick={() => importMonster(r.index)}
                             className="text-purple-400 hover:text-purple-300 p-1"
-                            title="Import to Map"
+                            title="Click to Import to Map (0,0) or Drag to Map"
                             disabled={loadingDetail === r.index}
                         >
                             {loadingDetail === r.index ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}

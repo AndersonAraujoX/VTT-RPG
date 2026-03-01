@@ -10,6 +10,16 @@ export interface MapAsset {
     locked?: boolean;
 }
 
+export interface Item {
+    id: string;
+    name: string;
+    description?: string;
+    type?: string;
+    quantity?: number;
+    weight?: number;
+    icon?: string;
+}
+
 export interface Token {
     id: string;
     x: number;
@@ -35,7 +45,26 @@ export interface Token {
     hidden?: boolean; // If true, only visible to GM (ghosted)
     conditions?: string[]; // Array of status effects (e.g., 'poisoned', 'prone')
     lightRadius?: number; // Light source radius in grid units/feet
+    targetId?: string; // Id of the token this token is targeting
     auras?: { id: string, radius: number, color: string }[]; // Magic auras
+    isLoot?: boolean;
+    inventory?: Item[];
+}
+
+export interface VFXEvent {
+    id: string;
+    type: 'explosion' | 'magic-missile' | 'heal';
+    x: number;
+    y: number;
+    color?: string;
+}
+
+export interface FloatingText {
+    id: string;
+    x: number;
+    y: number;
+    text: string;
+    color: string;
 }
 
 export interface ChatMessage {
@@ -49,6 +78,13 @@ export interface ChatMessage {
         formula: string;
         result: number;
         details: string;
+    };
+    attackData?: {
+        attackerName: string;
+        itemName: string;
+        damageTotal: number;
+        damageType?: string;
+        rollResults: { label: string, result: number }[];
     };
 }
 
@@ -96,6 +132,17 @@ export interface Ping {
     color: string;
 }
 
+export interface MapTrigger {
+    id: string;
+    x: number;
+    y: number;
+    radius: number;
+    type: 'trap' | 'teleport' | 'prompt';
+    effectVFX?: 'explosion' | 'magic-missile' | 'heal';
+    chatMessage?: string;
+    isVisibleToPlayers?: boolean;
+}
+
 export interface SavedAsset {
     id: string;
     name: string;
@@ -114,12 +161,42 @@ export interface Scene {
         fogEnabled: boolean;
         revealedAreas: { x: number, y: number, radius: number }[];
         dynamicLightingEnabled: boolean;
+        weather: 'none' | 'rain' | 'snow';
+        dayTime: number;
     };
     tokens: Token[];
     mapAssets: MapAsset[];
     drawings: Drawing[];
     walls: Wall[];
     texts: TextItem[];
+    triggers: MapTrigger[];
+    audioZones: AudioZone[];
+}
+
+export type MapState = Scene['map'];
+
+export interface Card {
+    id: string;
+    typeId: string;
+    label?: string;
+    imageUrl?: string;
+}
+
+export interface AudioZone {
+    id: string;
+    x: number;
+    y: number;
+    radius: number;
+    url: string;
+    baseVolume: number;
+    loop?: boolean;
+}
+
+export interface Deck {
+    id: string;
+    name: string;
+    cards: Card[];
+    discard: Card[];
 }
 
 export interface GameState {
@@ -145,6 +222,8 @@ export interface GameState {
         fogEnabled: boolean;
         revealedAreas: { x: number, y: number, radius: number }[];
         dynamicLightingEnabled: boolean;
+        weather: 'none' | 'rain' | 'snow';
+        dayTime: number; // 0 to 24
     };
     chat: ChatMessage[];
     turnOrder: TurnEntity[];
@@ -158,11 +237,19 @@ export interface GameState {
     walls: Wall[];
     texts: TextItem[];
     pings: Ping[];
+    vfx: VFXEvent[];
+    floatingTexts: FloatingText[];
+    triggers: MapTrigger[];
+    audioZones: AudioZone[];
 
     // GM Tools State
     scenes: Scene[];
     activeSceneId: string;
     savedAssets: SavedAsset[];
+
+    // Deck System
+    decks: Deck[];
+    hands: Record<string, Card[]>;
 
     // Actions
     setIdentity: (id: string, isHost: boolean) => void;
@@ -177,6 +264,15 @@ export interface GameState {
     addChatMessage: (msg: ChatMessage) => void;
     addPing: (ping: Ping) => void;
     removePing: (id: string) => void;
+    setWeather: (weather: 'none' | 'rain' | 'snow') => void;
+    setDayTime: (time: number) => void;
+
+    // Combat & VFX Actions
+    setTarget: (tokenId: string, targetId: string | null) => void;
+    triggerVFX: (vfx: VFXEvent) => void;
+    removeVFX: (id: string) => void;
+    addFloatingText: (text: FloatingText) => void;
+    removeFloatingText: (id: string) => void;
 
     // Map Layer Actions
     setActiveLayer: (layer: 'map' | 'token') => void;
@@ -202,6 +298,18 @@ export interface GameState {
     toggleWallDoor: (id: string) => void;
     toggleDynamicLighting: (enabled: boolean) => void;
 
+    // Trigger Actions
+    addTrigger: (trigger: MapTrigger) => void;
+    updateTrigger: (id: string, data: Partial<MapTrigger>) => void;
+    removeTrigger: (id: string) => void;
+    clearTriggers: () => void;
+
+    // Audio Zone Actions
+    addAudioZone: (zone: AudioZone) => void;
+    updateAudioZone: (id: string, data: Partial<AudioZone>) => void;
+    removeAudioZone: (id: string) => void;
+    clearAudioZones: () => void;
+
     // Initiative Actions
     setTurnOrder: (order: TurnEntity[]) => void;
     addToInitiative: (name: string, value: number) => void;
@@ -222,6 +330,16 @@ export interface GameState {
     // Asset Actions
     addSavedAsset: (asset: SavedAsset) => void;
     removeSavedAsset: (id: string) => void;
+
+    // Deck Actions
+    addDeck: (deck: Deck) => void;
+    removeDeck: (id: string) => void;
+    shuffleDeck: (deckId: string) => void;
+    drawCard: (deckId: string, playerId: string | 'table') => void;
+    discardCard: (playerId: string, cardId: string) => void;
+
+    // Automation & Combat
+    applyDamage: (tokenId: string, amount: number) => void;
 
     // Sync methods (called by network)
     syncState: (state: Partial<GameState>) => void;
@@ -246,7 +364,9 @@ export const useGameStore = create<GameState>((set) => ({
         offsetY: 0,
         fogEnabled: false,
         revealedAreas: [],
-        dynamicLightingEnabled: false
+        dynamicLightingEnabled: false,
+        weather: 'none',
+        dayTime: 12
     },
     chat: [],
     turnOrder: [],
@@ -257,9 +377,15 @@ export const useGameStore = create<GameState>((set) => ({
     walls: [],
     texts: [],
     pings: [],
+    vfx: [],
+    floatingTexts: [],
+    triggers: [],
+    audioZones: [],
     scenes: [],
     activeSceneId: 'default',
     savedAssets: [],
+    decks: [],
+    hands: {},
 
     setIdentity: (id, isHost) => set({ myId: id, isHost }),
     setUsername: (name) => set({ username: name }),
@@ -307,6 +433,16 @@ export const useGameStore = create<GameState>((set) => ({
 
     addPing: (ping) => set((state) => ({ pings: [...state.pings, ping] })),
     removePing: (id) => set((state) => ({ pings: state.pings.filter(p => p.id !== id) })),
+    setWeather: (weather) => set((state) => ({ map: { ...state.map, weather } })),
+    setDayTime: (time) => set((state) => ({ map: { ...state.map, dayTime: time } })),
+
+    setTarget: (tokenId, targetId) => set((state) => ({
+        tokens: state.tokens.map(t => t.id === tokenId ? { ...t, targetId: targetId || undefined } : t)
+    })),
+    triggerVFX: (vfx) => set((state) => ({ vfx: [...state.vfx, vfx] })),
+    removeVFX: (id) => set((state) => ({ vfx: state.vfx.filter(v => v.id !== id) })),
+    addFloatingText: (text) => set((state) => ({ floatingTexts: [...state.floatingTexts, text] })),
+    removeFloatingText: (id) => set((state) => ({ floatingTexts: state.floatingTexts.filter(f => f.id !== id) })),
 
     setTurnOrder: (order) => set({ turnOrder: order }),
     addToInitiative: (name, initiative) => set((state) => {
@@ -347,6 +483,20 @@ export const useGameStore = create<GameState>((set) => ({
     })),
     toggleDynamicLighting: (enabled) => set((state) => ({ map: { ...state.map, dynamicLightingEnabled: enabled } })),
 
+    addTrigger: (trigger) => set((s) => ({ triggers: [...s.triggers, trigger] })),
+    updateTrigger: (id, data) => set((s) => ({
+        triggers: s.triggers.map((t) => t.id === id ? { ...t, ...data } : t)
+    })),
+    removeTrigger: (id) => set((s) => ({ triggers: s.triggers.filter((t) => t.id !== id) })),
+    clearTriggers: () => set({ triggers: [] }),
+
+    addAudioZone: (zone) => set((s) => ({ audioZones: [...s.audioZones, zone] })),
+    updateAudioZone: (id, data) => set((s) => ({
+        audioZones: s.audioZones.map((z) => z.id === id ? { ...z, ...data } : z)
+    })),
+    removeAudioZone: (id) => set((s) => ({ audioZones: s.audioZones.filter((z) => z.id !== id) })),
+    clearAudioZones: () => set({ audioZones: [] }),
+
     saveScene: (name) => set((state) => {
         const id = Date.now().toString();
         const newScene: Scene = {
@@ -357,7 +507,9 @@ export const useGameStore = create<GameState>((set) => ({
             tokens: state.tokens,
             drawings: state.drawings,
             walls: state.walls,
-            texts: state.texts
+            texts: state.texts,
+            triggers: state.triggers,
+            audioZones: state.audioZones
         };
         return {
             scenes: [...state.scenes, newScene],
@@ -375,12 +527,82 @@ export const useGameStore = create<GameState>((set) => ({
             tokens: scene.tokens,
             drawings: scene.drawings,
             walls: scene.walls,
-            texts: scene.texts
+            texts: scene.texts,
+            triggers: scene.triggers || [],
+            audioZones: scene.audioZones || []
         };
     }),
 
     addSavedAsset: (asset) => set((state) => ({ savedAssets: [...state.savedAssets, asset] })),
     removeSavedAsset: (id) => set((state) => ({ savedAssets: state.savedAssets.filter(a => a.id !== id) })),
+
+    addDeck: (deck) => set((state) => ({ decks: [...state.decks, deck] })),
+    removeDeck: (id) => set((state) => ({ decks: state.decks.filter(d => d.id !== id) })),
+    shuffleDeck: (deckId) => set((state) => ({
+        decks: state.decks.map(d => {
+            if (d.id !== deckId) return d;
+            const allCards = [...d.cards, ...d.discard];
+            for (let i = allCards.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [allCards[i], allCards[j]] = [allCards[j], allCards[i]];
+            }
+            return { ...d, cards: allCards, discard: [] };
+        })
+    })),
+    drawCard: (deckId, playerId) => set((state) => {
+        const deck = state.decks.find(d => d.id === deckId);
+        if (!deck || deck.cards.length === 0) return state;
+
+        const drawnCard = deck.cards[0];
+        const newCards = deck.cards.slice(1);
+
+        const newDecks = state.decks.map(d =>
+            d.id === deckId ? { ...d, cards: newCards } : d
+        );
+
+        if (playerId === 'table') {
+            // For now, put to discard immediately if drawn to table
+            // Later we can add it to an active table selection
+            return {
+                decks: newDecks.map(d => d.id === deckId ? { ...d, discard: [...d.discard, drawnCard] } : d)
+            };
+        }
+
+        const currentHand = state.hands[playerId] || [];
+        return {
+            decks: newDecks,
+            hands: { ...state.hands, [playerId]: [...currentHand, drawnCard] }
+        };
+    }),
+    discardCard: (playerId, cardId) => set((state) => {
+        const hand = state.hands[playerId];
+        if (!hand) return state;
+        const card = hand.find(c => c.id === cardId);
+        if (!card) return state;
+
+        const targetDeck = state.decks.find(d =>
+            d.cards.some(c => c.id === cardId) || d.discard.some(c => c.id === cardId) || cardId.startsWith(d.id)
+        );
+
+        if (targetDeck) {
+            return {
+                hands: { ...state.hands, [playerId]: hand.filter(c => c.id !== cardId) },
+                decks: state.decks.map(d => d.id === targetDeck.id ? { ...d, discard: [...d.discard, card] } : d)
+            };
+        }
+
+        return {
+            hands: { ...state.hands, [playerId]: hand.filter(c => c.id !== cardId) },
+        };
+    }),
+
+    applyDamage: (tokenId, amount) => set((s) => ({
+        tokens: s.tokens.map(t => {
+            if (t.id !== tokenId || !t.stats) return t;
+            const newHp = Math.max(0, Math.min(t.stats.maxHp, t.stats.hp - amount));
+            return { ...t, stats: { ...t.stats, hp: newHp } };
+        })
+    })),
 
     syncState: (newState) => set((state) => ({ ...state, ...newState })),
 }));

@@ -12,7 +12,9 @@ describe('GameStore Fog of War', () => {
                 offsetY: 0,
                 fogEnabled: false,
                 revealedAreas: [],
-                dynamicLightingEnabled: false
+                dynamicLightingEnabled: false,
+                weather: 'none',
+                dayTime: 12
             }
         });
     });

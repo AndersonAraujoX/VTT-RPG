@@ -17,11 +17,15 @@ import { GMSettings } from './components/Tools/GMSettings';
 import { SceneManager } from './components/Tools/SceneManager';
 import { AssetLibrary } from './components/Tools/AssetLibrary';
 import { SaveLoadMenu } from './components/Tools/SaveLoadMenu';
+import { DeckManager } from './components/Tools/DeckManager';
+import { SpatialAudioEngine } from './components/Audio/SpatialAudioEngine';
+import { DungeonGeneratorModal } from './components/Modals/DungeonGeneratorModal';
 import { processImageUpload } from './utils/imageHandler';
 
 export function App() {
   const [targetPeerId, setTargetPeerId] = useState('');
   const [editingTokenId, setEditingTokenId] = useState<string | null>(null);
+  const [dungeonGenOpen, setDungeonGenOpen] = useState(false);
   const myId = useGameStore(s => s.myId);
   const setIdentity = useGameStore(s => s.setIdentity);
   const activeLayer = useGameStore(s => s.activeLayer);
@@ -68,6 +72,7 @@ export function App() {
       {/* Main Map Area (Edge to Edge) */}
       <div className="absolute inset-0 z-0">
         <MapBoard onEditToken={setEditingTokenId} />
+        <DeckManager />
         <AVChat />
       </div>
 
@@ -126,7 +131,7 @@ export function App() {
             <div className="bg-gray-900/60 backdrop-blur-lg border border-white/10 shadow-2xl rounded-2xl p-4 w-72 max-h-[60vh] overflow-y-auto custom-scrollbar flex flex-col gap-3">
               <DrawingTools />
               <div className="h-px bg-white/10 w-full my-1"></div>
-              <GMSettings />
+              <GMSettings onOpenDungeonGenerator={() => setDungeonGenOpen(true)} />
               <div className="h-px bg-white/10 w-full my-1"></div>
               <SceneManager />
               <AssetLibrary />
@@ -265,6 +270,10 @@ export function App() {
           tokenId={editingTokenId}
           onClose={() => setEditingTokenId(null)}
         />
+      )}
+      <SpatialAudioEngine />
+      {dungeonGenOpen && (
+        <DungeonGeneratorModal onClose={() => setDungeonGenOpen(false)} />
       )}
     </div>
   );

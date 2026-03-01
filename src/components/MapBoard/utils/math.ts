@@ -113,3 +113,37 @@ export function calculateVisionPolygon(
     intersects.sort((a, b) => a.angle - b.angle);
     return intersects.map(i => ({ x: i.x, y: i.y }));
 }
+
+export function isPointInCircle(point: Point, center: Point, radius: number): boolean {
+    const dx = point.x - center.x;
+    const dy = point.y - center.y;
+    return dx * dx + dy * dy <= radius * radius;
+}
+
+export function isPointInRect(point: Point, rect: { x: number, y: number, width: number, height: number }): boolean {
+    return point.x >= rect.x &&
+        point.x <= rect.x + rect.width &&
+        point.y >= rect.y &&
+        point.y <= rect.y + rect.height;
+}
+
+/**
+ * Checks if a point is inside a cone defined by start point, length, angle, and spread (opening angle).
+ * spread is in radians.
+ */
+export function isPointInCone(point: Point, start: Point, length: number, directionAngle: number, spread: number): boolean {
+    const dx = point.x - start.x;
+    const dy = point.y - start.y;
+    const distSq = dx * dx + dy * dy;
+
+    if (distSq > length * length) return false;
+
+    const pointAngle = Math.atan2(dy, dx);
+    let diff = pointAngle - directionAngle;
+
+    // Normalize angle difference to [-PI, PI]
+    while (diff < -Math.PI) diff += 2 * Math.PI;
+    while (diff > Math.PI) diff -= 2 * Math.PI;
+
+    return Math.abs(diff) <= spread / 2;
+}

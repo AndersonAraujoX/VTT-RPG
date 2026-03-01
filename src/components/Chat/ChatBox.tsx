@@ -111,7 +111,31 @@ export const ChatBox: React.FC = () => {
                             <span>{new Date(m.timestamp).toLocaleTimeString()}</span>
                         </div>
 
-                        {m.type === 'roll' ? (
+                        {m.attackData ? (
+                            <div className="bg-gradient-to-br from-gray-800 to-gray-950 p-3 rounded-xl border border-purple-500/30 shadow-lg space-y-2 mt-1">
+                                <div className="flex justify-between items-start">
+                                    <h4 className="text-xs font-black uppercase text-purple-400 tracking-tighter">{m.attackData.itemName}</h4>
+                                    <div className="text-xl font-black text-white drop-shadow-md">{m.attackData.damageTotal}</div>
+                                </div>
+                                <div className="flex flex-wrap gap-1">
+                                    {m.attackData.rollResults.map((r, i) => (
+                                        <div key={i} className="px-1.5 py-0.5 bg-black/40 rounded text-[9px] text-gray-400 border border-white/5">
+                                            {r.label}: <span className="text-gray-200">{r.result}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                                <div className="flex gap-1 pt-1">
+                                    <button
+                                        onClick={() => {
+                                            alert("Apply logic: This would reduce HP of target by " + m.attackData?.damageTotal);
+                                        }}
+                                        className="flex-1 py-1 bg-red-600/20 hover:bg-red-600/40 border border-red-500/50 rounded text-[10px] font-bold transition-all"
+                                    >
+                                        Apply Full
+                                    </button>
+                                </div>
+                            </div>
+                        ) : m.type === 'roll' ? (
                             <div className="bg-gray-800 p-2 rounded border border-gray-700">
                                 <div className="font-mono text-lg font-bold text-green-400">{m.rollData?.result}</div>
                                 <div className="text-xs text-gray-400">{m.rollData?.formula} ({m.rollData?.details})</div>

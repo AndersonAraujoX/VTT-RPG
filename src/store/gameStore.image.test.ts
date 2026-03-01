@@ -6,7 +6,7 @@ describe('GameStore Image Handling', () => {
         // Reset the store before each test
         useGameStore.setState({
             tokens: [],
-            map: { url: null, scale: 50, offsetX: 0, offsetY: 0, fogEnabled: false, revealedAreas: [], dynamicLightingEnabled: false },
+            map: { url: null, scale: 50, offsetX: 0, offsetY: 0, fogEnabled: false, revealedAreas: [], dynamicLightingEnabled: false, weather: 'none' as const, dayTime: 12 },
             savedAssets: []
         });
     });

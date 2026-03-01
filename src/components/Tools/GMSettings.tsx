@@ -1,12 +1,19 @@
 import React from 'react';
 import { useGameStore } from '../../store/gameStore';
 import { networkManager } from '../../services/network';
+import { Layout } from 'lucide-react';
 
-export const GMSettings: React.FC = () => {
+interface GMSettingsProps {
+    onOpenDungeonGenerator: () => void;
+}
+
+export const GMSettings: React.FC<GMSettingsProps> = ({ onOpenDungeonGenerator }) => {
     const isHost = useGameStore(s => s.isHost);
     const fogEnabled = useGameStore(s => s.map.fogEnabled);
     const dynamicLightingEnabled = useGameStore(s => s.map.dynamicLightingEnabled);
     const activeTool = useGameStore(s => s.activeTool);
+    const weather = useGameStore(s => s.map.weather);
+    const dayTime = useGameStore(s => s.map.dayTime);
 
     if (!isHost) return null;
 
@@ -33,6 +40,14 @@ export const GMSettings: React.FC = () => {
                     }}
                 />
             </label>
+
+            <button
+                onClick={onOpenDungeonGenerator}
+                className="w-full mt-4 flex items-center justify-center gap-2 p-3 bg-gradient-to-r from-cyan-600/20 to-blue-600/20 hover:from-cyan-600/40 hover:to-blue-600/40 border border-cyan-500/50 rounded-xl text-xs font-black uppercase tracking-widest text-cyan-400 transition-all shadow-lg group"
+            >
+                <Layout size={16} className="group-hover:rotate-12 transition-transform" />
+                Dungeon Architect
+            </button>
 
             <div className="mt-4 p-2 bg-gray-900 border border-gray-700 rounded-lg space-y-2">
                 <h3 className="text-xs font-bold uppercase text-gray-500 flex items-center gap-2">
@@ -106,6 +121,57 @@ export const GMSettings: React.FC = () => {
                     </button>
                 </div>
                 <p className="text-[10px] text-gray-400">Lines drawn will block vision for all tokens.</p>
+            </div>
+
+            <div className="mt-4 p-2 bg-gray-900 border border-blue-700 rounded-lg space-y-3">
+                <h3 className="text-xs font-bold uppercase text-blue-400 flex items-center gap-2">
+                    🌍 Environment
+                </h3>
+
+                <div className="space-y-1">
+                    <label className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Weather</label>
+                    <div className="flex gap-1">
+                        {(['none', 'rain', 'snow'] as const).map(w => (
+                            <button
+                                key={w}
+                                onClick={() => {
+                                    useGameStore.getState().setWeather(w);
+                                    networkManager.sendAction('SYNC_STATE', { map: useGameStore.getState().map });
+                                }}
+                                className={`flex-1 text-[10px] py-1 rounded capitalize font-bold border ${weather === w ? 'bg-blue-600 border-blue-400 text-white' : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'
+                                    }`}
+                            >
+                                {w}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="space-y-1">
+                    <div className="flex justify-between items-center">
+                        <label className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Time of Day</label>
+                        <span className="text-[10px] font-mono text-blue-300">{Math.floor(dayTime)}:00h</span>
+                    </div>
+                    <input
+                        type="range"
+                        min="0"
+                        max="23.9"
+                        step="0.1"
+                        value={dayTime}
+                        onChange={(e) => {
+                            const val = parseFloat(e.target.value);
+                            useGameStore.getState().setDayTime(val);
+                            // Throttled network sync would be better, but for now direct
+                            networkManager.sendAction('SYNC_STATE', { map: useGameStore.getState().map });
+                        }}
+                        className="w-full accent-blue-500 bg-gray-800 h-1.5 rounded-lg appearance-none cursor-pointer"
+                    />
+                    <div className="flex justify-between text-[8px] text-gray-600 font-bold px-1">
+                        <span>Midnight</span>
+                        <span>Noon</span>
+                        <span>Midnight</span>
+                    </div>
+                </div>
             </div>
         </>
     );
