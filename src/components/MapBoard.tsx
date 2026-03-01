@@ -3,37 +3,8 @@ import { Application, Sprite, Container, Graphics, Text, TextStyle, Assets } fro
 import { useGameStore } from '../store/gameStore';
 import { networkManager } from '../services/network';
 import { processImageUpload } from '../utils/imageHandler';
+import { calculateVisionPolygon } from './MapBoard/utils/math';
 
-// --- Raycasting Math Helper ---
-function getIntersection(ray1: { x: number, y: number }, ray2: { x: number, y: number }, seg1: { x: number, y: number }, seg2: { x: number, y: number }) {
-    const r_px = ray1.x;
-    const r_py = ray1.y;
-    const r_dx = ray2.x - ray1.x;
-    const r_dy = ray2.y - ray1.y;
-
-    const s_px = seg1.x;
-    const s_py = seg1.y;
-    const s_dx = seg2.x - seg1.x;
-    const s_dy = seg2.y - seg1.y;
-
-    const denominator = r_dx * s_dy - r_dy * s_dx;
-    if (denominator === 0) return null; // Parallel
-
-    const T1 = (s_px - r_px) * s_dy - (s_py - r_py) * s_dx;
-    const t = T1 / denominator;
-
-    const U1 = (s_px - r_px) * r_dy - (s_py - r_py) * r_dx;
-    const u = U1 / denominator;
-
-    if (t > 0 && u >= 0 && u <= 1) {
-        return {
-            x: r_px + r_dx * t,
-            y: r_py + r_dy * t,
-            param: t
-        };
-    }
-    return null;
-}
 
 
 interface MapBoardProps {
@@ -908,81 +879,16 @@ export const MapBoard: React.FC<MapBoardProps> = ({ onEditToken }) => {
 
         if (visibleTokens.length > 0) {
             const bounds = { minX: -5000, minY: -5000, maxX: 5000, maxY: 5000 };
-            const boundaryWalls = [
-                { id: 'b1', p1: { x: bounds.minX, y: bounds.minY }, p2: { x: bounds.maxX, y: bounds.minY } },
-                { id: 'b2', p1: { x: bounds.maxX, y: bounds.minY }, p2: { x: bounds.maxX, y: bounds.maxY } },
-                { id: 'b3', p1: { x: bounds.maxX, y: bounds.maxY }, p2: { x: bounds.minX, y: bounds.maxY } },
-                { id: 'b4', p1: { x: bounds.minX, y: bounds.maxY }, p2: { x: bounds.minX, y: bounds.minY } }
-            ];
-
             const activeWalls = walls.filter(w => !w.isDoor || !w.isOpen); // Open doors do not block light
-            const baseWalls = [...activeWalls, ...boundaryWalls];
 
             visibleTokens.forEach(token => {
                 const tx = token.x * mapState.scale + mapState.scale / 2;
                 const ty = token.y * mapState.scale + mapState.scale / 2;
 
-                let tokenWalls = [...baseWalls];
-
-                // If token has light radius, bound vision. Otherwise generic huge radius.
                 const radiusFt = (token.lightRadius && token.lightRadius > 0) ? token.lightRadius : 1000;
                 const radiusPx = (radiusFt / 5) * mapState.scale;
 
-                // Create 16-gon light boundary for smooth circular vision
-                const polyPoints: { x: number, y: number }[] = [];
-                const sides = 16;
-                for (let i = 0; i < sides; i++) {
-                    const angle = (i * 2 * Math.PI) / sides;
-                    polyPoints.push({ x: tx + Math.cos(angle) * radiusPx, y: ty + Math.sin(angle) * radiusPx });
-                }
-                for (let i = 0; i < sides; i++) {
-                    const p1 = polyPoints[i];
-                    const p2 = polyPoints[(i + 1) % sides];
-                    tokenWalls.push({ id: `light_${i}`, p1, p2 });
-                }
-
-                const points: { x: number, y: number }[] = [];
-                tokenWalls.forEach(w => {
-                    points.push(w.p1, w.p2);
-                });
-
-                const angles: number[] = [];
-                points.forEach(p => {
-                    const angle = Math.atan2(p.y - ty, p.x - tx);
-                    angles.push(angle - 0.00001, angle, angle + 0.00001);
-                });
-
-                const intersects: { x: number, y: number, angle: number }[] = [];
-
-                angles.forEach(angle => {
-                    const dx = Math.cos(angle);
-                    const dy = Math.sin(angle);
-                    const ray = {
-                        p1: { x: tx, y: ty },
-                        p2: { x: tx + dx * (radiusPx + 100), y: ty + dy * (radiusPx + 100) }
-                    };
-
-                    let closestIntersect: any = null;
-                    let minT = Infinity;
-
-                    tokenWalls.forEach(wall => {
-                        const intersect = getIntersection(ray.p1, ray.p2, wall.p1, wall.p2);
-                        if (intersect && intersect.param < minT) {
-                            minT = intersect.param;
-                            closestIntersect = intersect;
-                        }
-                    });
-
-                    if (closestIntersect) {
-                        intersects.push({
-                            x: closestIntersect.x,
-                            y: closestIntersect.y,
-                            angle
-                        });
-                    }
-                });
-
-                intersects.sort((a, b) => a.angle - b.angle);
+                const intersects = calculateVisionPolygon({ x: tx, y: ty }, radiusPx, activeWalls, bounds);
 
                 if (intersects.length > 0) {
                     g.moveTo(intersects[0].x, intersects[0].y);
